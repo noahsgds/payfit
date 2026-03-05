@@ -3,28 +3,38 @@ import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ─── Themes ───────────────────────────────────────────────────────────────────
-// One batched prompt per engine = 5 API calls total (all in parallel).
+// 8 strategic themes for PayFit — still 1 batched call per engine.
+// Using a ranked list format (vs paragraph) = ~60% fewer output tokens.
 
-const THEMES = [
-  { id: 1, theme: "logiciel paie",      label: "Logiciel de paie PME" },
-  { id: 2, theme: "SIRH PME",           label: "SIRH 50-200 salariés" },
-  { id: 3, theme: "automatisation paie",label: "Automatisation paie" },
-  { id: 4, theme: "gestion RH",         label: "Outils RH PME" },
+export const THEMES = [
+  { id: 1, theme: "logiciel paie PME",      label: "Logiciel de paie PME" },
+  { id: 2, theme: "SIRH PME",               label: "SIRH 50-200 salariés" },
+  { id: 3, theme: "automatisation paie",    label: "Automatisation paie" },
+  { id: 4, theme: "gestion RH PME",         label: "Outils RH PME" },
+  { id: 5, theme: "congés absences",        label: "Congés & absences" },
+  { id: 6, theme: "notes de frais",         label: "Notes de frais" },
+  { id: 7, theme: "onboarding RH",          label: "Onboarding RH digital" },
+  { id: 8, theme: "conformité DSN paie",    label: "Conformité DSN/paie" },
 ];
 
-// Single prompt: forces concise answers and structured output.
+// Concise list format: each answer is a comma-separated ranked list.
+// ~150-200 output tokens total vs ~450 before → 60% cheaper, 2× the themes.
 const BATCH_PROMPT = `Tu es un expert en logiciels RH et paie en France.
-Pour chacun des 4 thèmes, réponds en 2-3 phrases en citant les principales solutions disponibles.
-Commence chaque bloc par le numéro (1. 2. 3. 4.).
+Pour chaque thème, cite les 5 meilleures solutions en ordre décroissant de pertinence, séparées par des virgules. Format strict : numéro) sol1, sol2, sol3, sol4, sol5
 
-1. Logiciel de paie pour PME en France
-2. SIRH pour entreprise de 50 à 200 salariés
-3. Automatiser la gestion de la paie en entreprise
-4. Outils RH recommandés pour les PME françaises`;
+1) Logiciel de paie pour PME
+2) SIRH pour entreprise 50-200 salariés
+3) Automatisation de la gestion de la paie
+4) Outils RH pour PME françaises
+5) Gestion des congés et absences
+6) Notes de frais en ligne
+7) Onboarding RH digital
+8) Conformité paie et DSN`;
 
 const KNOWN_SOLUTIONS = [
   "payfit", "silae", "sage", "cegid", "lucca", "factorial",
   "nibelis", "eurecia", "workday", "bamboohr", "kelio", "adp", "combo",
+  "spendesk", "rydoo", "n2f", "jenji", "pennylane",
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,19 +42,18 @@ const KNOWN_SOLUTIONS = [
 export interface ThemeResult {
   theme: string;
   label: string;
-  rawText: string;
+  rawText: string;          // the comma-separated list as returned by the AI
   mentioned: boolean;
-  rank: number | null;     // position of PayFit among solutions cited
-  snippet: string;
-  competitors: string[];   // other solutions cited in this theme
+  rank: number | null;      // position in the list (1 = best)
+  competitors: string[];    // other solutions cited
 }
 
 export interface EngineResult {
   engine: string;
   themes: ThemeResult[];
-  visibility: number;      // % of themes where PayFit appears
+  visibility: number;       // % of themes where PayFit appears
   avgRank: number | null;
-  fullResponse: string;    // raw batched response (for display)
+  fullResponse: string;
 }
 
 export interface GeoApiResponse {
@@ -52,6 +61,9 @@ export interface GeoApiResponse {
   globalVisibility: number;
   globalAvgRank: number | null;
   topCompetitors: { name: string; count: number }[];
+  // Matrix: per theme, ranks per engine (null = not cited)
+  matrix: { label: string; ranks: (number | null)[] }[];
+  engineNames: string[];
   timestamp: string;
   cached: boolean;
 }
@@ -60,42 +72,31 @@ export interface GeoApiResponse {
 
 function parseThemes(text: string): string[] {
   const sections: string[] = new Array(THEMES.length).fill("");
-  const parts = text.split(/\n(?=\d+[.)]\s)/);
-  for (const part of parts) {
-    const match = part.match(/^(\d+)[.)]\s*([\s\S]*)/);
-    if (match) {
-      const idx = parseInt(match[1], 10) - 1;
-      if (idx >= 0 && idx < THEMES.length) {
-        sections[idx] = match[2].trim();
-      }
+  for (const line of text.split("\n")) {
+    const m = line.match(/^(\d+)[.)]\s*(.+)/);
+    if (m) {
+      const idx = parseInt(m[1], 10) - 1;
+      if (idx >= 0 && idx < THEMES.length) sections[idx] = m[2].trim();
     }
   }
   return sections;
 }
 
-function analyzeTheme(text: string, themeId: number): ThemeResult {
+function analyzeTheme(rawText: string, themeId: number): ThemeResult {
   const { theme, label } = THEMES[themeId];
-  const lower = text.toLowerCase();
+  const lower = rawText.toLowerCase();
   const mentioned = lower.includes("payfit");
 
-  const found: { name: string; pos: number }[] = [];
-  for (const s of KNOWN_SOLUTIONS) {
-    const idx = lower.indexOf(s);
-    if (idx !== -1) found.push({ name: s, pos: idx });
-  }
-  found.sort((a, b) => a.pos - b.pos);
+  // Parse as ordered list: "PayFit, Silae, Sage, ..."
+  const items = rawText.split(",").map((s) => s.trim().toLowerCase());
+  const payfitIdx = items.findIndex((s) => s.includes("payfit"));
+  const rank = payfitIdx !== -1 ? payfitIdx + 1 : null;
 
-  const competitors = found.filter((f) => f.name !== "payfit").map((f) => f.name);
-  const payfitPos = found.findIndex((f) => f.name === "payfit");
-  const rank = payfitPos !== -1 ? payfitPos + 1 : null;
+  const competitors = items
+    .filter((_, i) => i !== payfitIdx)
+    .flatMap((item) => KNOWN_SOLUTIONS.filter((s) => item.includes(s)));
 
-  let snippet = "";
-  if (mentioned) {
-    const m = text.match(/[^.!?\n]*[Pp]ay[Ff]it[^.!?\n]*/);
-    if (m) snippet = m[0].trim().replace(/^\s*[-–•*]\s*/, "");
-  }
-
-  return { theme, label, rawText: text, mentioned, rank, snippet, competitors };
+  return { theme, label, rawText, mentioned, rank, competitors };
 }
 
 function buildEngineResult(engine: string, fullResponse: string): EngineResult {
@@ -112,11 +113,15 @@ function buildEngineResult(engine: string, fullResponse: string): EngineResult {
   return { engine, themes, visibility, avgRank, fullResponse };
 }
 
-// ─── OpenAI-compatible call (shared helper) ───────────────────────────────────
+// ─── OpenAI-compatible call ───────────────────────────────────────────────────
 
 const SYSTEM_MSG = "Tu es un expert en logiciels RH et paie en France. Réponds de façon factuelle et concise.";
 
-async function callOpenAICompat(client: OpenAI, model: string, extraHeaders?: Record<string, string>): Promise<string> {
+async function callOpenAICompat(
+  client: OpenAI,
+  model: string,
+  extraHeaders?: Record<string, string>
+): Promise<string> {
   const res = await client.chat.completions.create(
     {
       model,
@@ -124,15 +129,15 @@ async function callOpenAICompat(client: OpenAI, model: string, extraHeaders?: Re
         { role: "system", content: SYSTEM_MSG },
         { role: "user",   content: BATCH_PROMPT },
       ],
-      max_tokens: 450,
-      temperature: 0.3,
+      max_tokens: 300,   // list format is very compact
+      temperature: 0.2,  // lower = more stable rankings over time
     },
     extraHeaders ? { headers: extraHeaders } : undefined
   );
   return res.choices[0]?.message?.content ?? "";
 }
 
-// ─── Cache (24h — GEO doesn't change hourly) ─────────────────────────────────
+// ─── Cache (24h) ──────────────────────────────────────────────────────────────
 
 let cache: { data: GeoApiResponse; ts: number } | null = null;
 const CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -147,11 +152,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...cache.data, cached: true });
   }
 
-  const openaiKey      = process.env.OPENAI_API_KEY;
-  const geminiKey      = process.env.GEMINI_API_KEY;
-  const groqKey        = process.env.GROQ_API_KEY;
-  const mistralKey     = process.env.MISTRAL_API_KEY;
-  const openrouterKey  = process.env.OPENROUTEUR_API_KEY;
+  const openaiKey     = process.env.OPENAI_API_KEY;
+  const geminiKey     = process.env.GEMINI_API_KEY;
+  const groqKey       = process.env.GROQ_API_KEY;
+  const mistralKey    = process.env.MISTRAL_API_KEY;
+  const openrouterKey = process.env.OPENROUTEUR_API_KEY;
 
   if (!openaiKey || !geminiKey) {
     return NextResponse.json(
@@ -160,11 +165,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const openai   = new OpenAI({ apiKey: openaiKey });
-  const genai    = new GoogleGenerativeAI(geminiKey);
+  const openai = new OpenAI({ apiKey: openaiKey });
+  const genai  = new GoogleGenerativeAI(geminiKey);
   const geminiModel = genai.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-  // Optional clients (only created if key present)
   const groq = groqKey
     ? new OpenAI({ apiKey: groqKey, baseURL: "https://api.groq.com/openai/v1" })
     : null;
@@ -175,19 +179,15 @@ export async function GET(request: Request) {
     ? new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1" })
     : null;
 
-  // 5 API calls in parallel (optional ones skipped if no key)
+  // All 5 in parallel — skip optional ones if key absent
   const [gptRes, geminiRes, groqRes, mistralRes, orRes] = await Promise.allSettled([
     callOpenAICompat(openai, "gpt-4o-mini"),
     geminiModel.generateContent({
       contents: [{ role: "user", parts: [{ text: BATCH_PROMPT }] }],
-      generationConfig: { maxOutputTokens: 450, temperature: 0.3 },
+      generationConfig: { maxOutputTokens: 300, temperature: 0.2 },
     }),
-    groq
-      ? callOpenAICompat(groq, "llama-3.3-70b-versatile")
-      : Promise.reject("no key"),
-    mistral
-      ? callOpenAICompat(mistral, "mistral-small-latest")
-      : Promise.reject("no key"),
+    groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")               : Promise.reject("no key"),
+    mistral ? callOpenAICompat(mistral, "mistral-small-latest")                  : Promise.reject("no key"),
     openrouter
       ? callOpenAICompat(openrouter, "google/gemma-2-9b-it:free", {
           "HTTP-Referer": "https://payfit.com",
@@ -196,21 +196,23 @@ export async function GET(request: Request) {
       : Promise.reject("no key"),
   ]);
 
-  const text = (r: PromiseSettledResult<string | { response: { text(): string } }>, isGemini = false) => {
+  const getText = (
+    r: PromiseSettledResult<string | { response: { text(): string } }>,
+    isGemini = false
+  ): string | null => {
     if (r.status === "rejected") {
-      const reason = String(r.reason);
-      return reason === "no key" ? null : `[Erreur: ${reason}]`;
+      return String(r.reason) === "no key" ? null : `[Erreur: ${r.reason}]`;
     }
     if (isGemini) return (r.value as { response: { text(): string } }).response.text();
     return r.value as string;
   };
 
   const engineDefs: [string, string | null][] = [
-    ["ChatGPT",     text(gptRes)],
-    ["Gemini",      text(geminiRes, true)],
-    ["Llama (Groq)",text(groqRes)],
-    ["Mistral",     text(mistralRes)],
-    ["Gemma (OR)",  text(orRes)],
+    ["ChatGPT",      getText(gptRes)],
+    ["Gemini",       getText(geminiRes, true)],
+    ["Llama (Groq)", getText(groqRes)],
+    ["Mistral",      getText(mistralRes)],
+    ["Gemma (OR)",   getText(orRes)],
   ];
 
   const engines = engineDefs
@@ -226,7 +228,7 @@ export async function GET(request: Request) {
     ? Math.round((allRanks.reduce((a, b) => a + b, 0) / allRanks.length) * 10) / 10
     : null;
 
-  // Top competitors across all engines/themes
+  // Top competitors
   const counts: Record<string, number> = {};
   for (const e of engines) {
     for (const t of e.themes) {
@@ -237,14 +239,22 @@ export async function GET(request: Request) {
   }
   const topCompetitors = Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
+    .slice(0, 8)
     .map(([name, count]) => ({ name, count }));
+
+  // Positioning matrix: theme × engine → rank
+  const matrix = THEMES.map((th, i) => ({
+    label: th.label,
+    ranks: engines.map((e) => e.themes[i]?.rank ?? null),
+  }));
 
   const data: GeoApiResponse = {
     engines,
     globalVisibility,
     globalAvgRank,
     topCompetitors,
+    matrix,
+    engineNames: engines.map((e) => e.engine),
     timestamp: new Date().toISOString(),
     cached: false,
   };
