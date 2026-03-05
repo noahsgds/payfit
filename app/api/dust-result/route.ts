@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJobResult, deleteJob } from "../../lib/dustJobs";
+import { getJobResult, deleteJob } from "../../lib/jobStore";
 
 export async function GET(req: NextRequest) {
   const jobId = req.nextUrl.searchParams.get("jobId");
@@ -8,11 +8,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "jobId est requis" }, { status: 400 });
   }
 
-  const job = getJobResult(jobId);
-  if (!job) {
+  const result = await getJobResult(jobId);
+  if (!result) {
     return NextResponse.json({ status: "pending" }, { status: 202 });
   }
 
-  deleteJob(jobId);
-  return NextResponse.json({ status: "done", result: job.result });
+  await deleteJob(jobId);
+  return NextResponse.json({ status: "done", result });
 }

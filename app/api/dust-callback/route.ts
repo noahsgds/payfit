@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { setJobResult } from "../../lib/dustJobs";
+import { setJobResult } from "../../lib/jobStore";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -9,6 +9,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "jobId et result sont requis" }, { status: 400 });
   }
 
-  setJobResult(jobId, result);
+  await setJobResult(jobId, result);
   return NextResponse.json({ ok: true });
 }
