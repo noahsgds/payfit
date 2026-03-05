@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ─── Themes ───────────────────────────────────────────────────────────────────
 // 8 strategic themes for PayFit — still 1 batched call per engine.
@@ -127,6 +126,7 @@ function buildEngineResult(engine: string, fullResponse: string): EngineResult {
 // ─── OpenAI-compatible call ───────────────────────────────────────────────────
 
 const SYSTEM_MSG = "Tu es un expert en logiciels RH et paie en France. Réponds de façon factuelle et concise.";
+const OR_HEADERS = { "HTTP-Referer": "https://payfit.com", "X-Title": "PayFit GEO Dashboard" };
 
 async function callOpenAICompat(
   client: OpenAI,
@@ -164,21 +164,18 @@ export async function GET(request: Request) {
   }
 
   const openaiKey     = process.env.OPENAI_API_KEY;
-  const geminiKey     = process.env.GEMINI_API_KEY;
   const groqKey       = process.env.GROQ_API_KEY;
   const mistralKey    = process.env.MISTRAL_API_KEY;
   const openrouterKey = process.env.OPENROUTEUR_API_KEY;
 
-  if (!openaiKey || !geminiKey) {
+  if (!openaiKey) {
     return NextResponse.json(
-      { error: "Clés manquantes : OPENAI_API_KEY et GEMINI_API_KEY requis" },
+      { error: "Clé manquante : OPENAI_API_KEY requis" },
       { status: 500 }
     );
   }
 
   const openai = new OpenAI({ apiKey: openaiKey });
-  const genai  = new GoogleGenerativeAI(geminiKey);
-  const geminiModel = genai.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
 
   const groq = groqKey
     ? new OpenAI({ apiKey: groqKey, baseURL: "https://api.groq.com/openai/v1" })
@@ -186,48 +183,37 @@ export async function GET(request: Request) {
   const mistral = mistralKey
     ? new OpenAI({ apiKey: mistralKey, baseURL: "https://api.mistral.ai/v1" })
     : null;
+  // OpenRouter: used for both Gemini (avoids user's exhausted quota) and Command-R
   const openrouter = openrouterKey
     ? new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1" })
     : null;
 
-  // All 5 in parallel — skip optional ones if key absent
-  const [gptRes, geminiRes, groqRes, mistralRes, orRes] = await Promise.allSettled([
+  // All 5 in parallel — optional engines skipped if key absent
+  const [gptRes, geminiRes, groqRes, mistralRes, commandRes] = await Promise.allSettled([
     callOpenAICompat(openai, "gpt-4o-mini"),
-    geminiModel.generateContent({
-      contents: [{ role: "user", parts: [{ text: BATCH_PROMPT }] }],
-      generationConfig: { maxOutputTokens: 450, temperature: 0.2 },
-    }),
-    groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")               : Promise.reject("no key"),
-    mistral ? callOpenAICompat(mistral, "mistral-small-latest")                  : Promise.reject("no key"),
     openrouter
-      ? callOpenAICompat(openrouter, "microsoft/phi-3-mini-128k-instruct:free", {
-          "HTTP-Referer": "https://payfit.com",
-          "X-Title": "PayFit GEO Dashboard",
-        })
+      ? callOpenAICompat(openrouter, "google/gemini-2.0-flash-lite:free", OR_HEADERS)
+      : Promise.reject("no key"),
+    groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")  : Promise.reject("no key"),
+    mistral ? callOpenAICompat(mistral, "mistral-small-latest")     : Promise.reject("no key"),
+    openrouter
+      ? callOpenAICompat(openrouter, "cohere/command-r7b-12-2024:free", OR_HEADERS)
       : Promise.reject("no key"),
   ]);
 
-  const getText = (
-    r: PromiseSettledResult<string | { response: { text(): string } }>,
-    isGemini = false,
-    stripThink = false,
-  ): string | null => {
+  const getText = (r: PromiseSettledResult<string>): string | null => {
     if (r.status === "rejected") {
       return String(r.reason) === "no key" ? null : `[Erreur: ${r.reason}]`;
     }
-    let text = isGemini
-      ? (r.value as { response: { text(): string } }).response.text()
-      : (r.value as string);
-    if (stripThink) text = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-    return text;
+    return r.value;
   };
 
   const engineDefs: [string, string | null][] = [
-    ["ChatGPT",      getText(gptRes)],
-    ["Gemini",       getText(geminiRes, true)],
-    ["Llama (Groq)", getText(groqRes)],
-    ["Mistral",      getText(mistralRes)],
-    ["Phi-3 (OR)", getText(orRes)],
+    ["ChatGPT",       getText(gptRes)],
+    ["Gemini",        getText(geminiRes)],
+    ["Llama (Groq)",  getText(groqRes)],
+    ["Mistral",       getText(mistralRes)],
+    ["Command-R (OR)", getText(commandRes)],
   ];
 
   const engines = engineDefs
