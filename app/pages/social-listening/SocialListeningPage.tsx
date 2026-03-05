@@ -249,18 +249,13 @@ export default function SocialListeningPage() {
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-lg">{cfg.icon}</span>
                   <span className="text-xs font-semibold text-slate-800">{cfg.label}</span>
-                  {p === "reddit" && (
-                    <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                      data.redditSource === "live"
-                        ? "bg-emerald-100 text-emerald-600"
-                        : "bg-amber-100 text-amber-600"
-                    }`}>
-                      {data.redditSource === "live" ? "live" : "demo"}
-                    </span>
-                  )}
-                  {p !== "reddit" && (
-                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 font-medium">demo</span>
-                  )}
+                  <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                    data.platformSource[p] === "live"
+                      ? "bg-emerald-100 text-emerald-600"
+                      : "bg-amber-100 text-amber-600"
+                  }`}>
+                    {data.platformSource[p] === "live" ? "live" : "demo"}
+                  </span>
                 </div>
                 <p className="text-2xl font-bold text-slate-900">{stats.count}</p>
                 <p className="text-[10px] text-slate-400 mt-0.5">

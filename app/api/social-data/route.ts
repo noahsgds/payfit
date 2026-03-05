@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { ApifyClient } from "apify-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,9 +33,9 @@ export interface SocialDataResponse {
   sentimentPct:  { positive: number; neutral: number; negative: number };
   dailyCounts:   { date: string; reddit: number; twitter: number; linkedin: number }[];
   totalMentions: number;
-  timestamp:     string;
-  cached:        boolean;
-  redditSource:  "live" | "mock";
+  timestamp:      string;
+  cached:         boolean;
+  platformSource: Record<Platform, "live" | "mock">;
 }
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
@@ -273,13 +274,13 @@ function computePlatformStats(posts: SocialPost[]): PlatformStats {
 }
 
 function buildResponse(
-  redditPosts: SocialPost[],
-  redditSource: "live" | "mock",
+  redditPosts:    SocialPost[],
+  twitterPosts:   SocialPost[],
+  linkedinPosts:  SocialPost[],
+  platformSource: Record<Platform, "live" | "mock">,
 ): SocialDataResponse {
   const now = Date.now();
 
-  const twitterPosts  = buildPosts(TWITTER_MOCK,  "twitter");
-  const linkedinPosts = buildPosts(LINKEDIN_MOCK, "linkedin");
   const allPosts = [...redditPosts, ...twitterPosts, ...linkedinPosts]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -313,10 +314,10 @@ function buildResponse(
     },
     sentimentPct,
     dailyCounts,
-    totalMentions: allPosts.length,
-    timestamp:     new Date().toISOString(),
-    cached:        false,
-    redditSource,
+    totalMentions:  allPosts.length,
+    timestamp:      new Date().toISOString(),
+    cached:         false,
+    platformSource,
   };
 }
 
@@ -376,6 +377,60 @@ async function scoreSentiment(posts: SocialPost[], openai: OpenAI): Promise<Soci
   }
 }
 
+// ─── Apify fetchers ───────────────────────────────────────────────────────────
+
+async function fetchTwitterApify(client: ApifyClient): Promise<SocialPost[]> {
+  const run = await client.actor("apidojo/tweet-scraper").call({
+    searchTerms: ["payfit"],
+    maxItems: 20,
+    sort: "Latest",
+    twitterHandles: [],
+  }, { waitSecs: 60 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { items } = await client.dataset(run.defaultDatasetId).listItems() as { items: any[] };
+
+  return items
+    .filter(t => t.text)
+    .map((t, i) => ({
+      id:          `twitter-live-${i}`,
+      platform:    "twitter" as const,
+      content:     t.text ?? "",
+      author:      t.author?.userName ? `@${t.author.userName}` : t.author?.name ?? "unknown",
+      source:      t.author?.userName ? `@${t.author.userName}` : t.author?.name ?? "unknown",
+      score:       t.likeCount   ?? 0,
+      numComments: t.replyCount  ?? 0,
+      permalink:   t.url,
+      createdAt:   t.createdAt ?? new Date().toISOString(),
+      sentiment:   "neutral" as const,
+    }));
+}
+
+async function fetchLinkedinApify(client: ApifyClient): Promise<SocialPost[]> {
+  const run = await client.actor("curious_coder/linkedin-post-search-scraper").call({
+    queries:    ["payfit"],
+    maxResults: 20,
+  }, { waitSecs: 90 });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { items } = await client.dataset(run.defaultDatasetId).listItems() as { items: any[] };
+
+  return items
+    .filter(p => p.text || p.content)
+    .map((p, i) => ({
+      id:          `linkedin-live-${i}`,
+      platform:    "linkedin" as const,
+      content:     p.text ?? p.content ?? "",
+      author:      p.authorName ?? p.author?.name ?? "Auteur LinkedIn",
+      source:      p.authorTitle ? `${p.authorTitle}` : (p.authorCompany ?? "LinkedIn"),
+      score:       p.likeCount      ?? p.reactionsCount ?? 0,
+      numComments: p.commentsCount  ?? 0,
+      permalink:   p.url ?? p.postUrl,
+      createdAt:   p.postedAt ?? p.publishedAt ?? new Date().toISOString(),
+      sentiment:   "neutral" as const,
+    }));
+}
+
 // ─── Route ────────────────────────────────────────────────────────────────────
 
 export async function GET() {
@@ -383,23 +438,68 @@ export async function GET() {
     return NextResponse.json({ ...cache.data, cached: true });
   }
 
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const openaiKey  = process.env.OPENAI_API_KEY;
+  const apifyToken = process.env.APIFY_API_TOKEN;
 
+  const apify = apifyToken ? new ApifyClient({ token: apifyToken }) : null;
+
+  // ── Reddit ──
   let redditPosts: SocialPost[];
   let redditSource: "live" | "mock";
-
   try {
     redditPosts  = await fetchRedditLive();
     redditSource = "live";
-    if (openaiKey) {
-      redditPosts = await scoreSentiment(redditPosts, new OpenAI({ apiKey: openaiKey }));
-    }
   } catch {
     redditPosts  = buildPosts(REDDIT_MOCK_POSTS, "reddit");
     redditSource = "mock";
   }
 
-  const response = buildResponse(redditPosts, redditSource);
+  // ── Twitter ──
+  let twitterPosts: SocialPost[];
+  let twitterSource: "live" | "mock";
+  try {
+    if (!apify) throw new Error("no Apify token");
+    twitterPosts  = await fetchTwitterApify(apify);
+    twitterSource = "live";
+  } catch {
+    twitterPosts  = buildPosts(TWITTER_MOCK, "twitter");
+    twitterSource = "mock";
+  }
+
+  // ── LinkedIn ──
+  let linkedinPosts: SocialPost[];
+  let linkedinSource: "live" | "mock";
+  try {
+    if (!apify) throw new Error("no Apify token");
+    linkedinPosts  = await fetchLinkedinApify(apify);
+    linkedinSource = "live";
+  } catch {
+    linkedinPosts  = buildPosts(LINKEDIN_MOCK, "linkedin");
+    linkedinSource = "mock";
+  }
+
+  // ── Sentiment scoring (OpenAI) ──
+  if (openaiKey) {
+    const openai = new OpenAI({ apiKey: openaiKey });
+    const allLive = [
+      ...(redditSource  === "live" ? redditPosts  : []),
+      ...(twitterSource === "live" ? twitterPosts  : []),
+      ...(linkedinSource === "live" ? linkedinPosts : []),
+    ];
+    const scored = allLive.length > 0 ? await scoreSentiment(allLive, openai) : [];
+    const scoredMap = new Map(scored.map(p => [p.id, p]));
+    redditPosts  = redditPosts .map(p => scoredMap.get(p.id) ?? p);
+    twitterPosts  = twitterPosts .map(p => scoredMap.get(p.id) ?? p);
+    linkedinPosts = linkedinPosts.map(p => scoredMap.get(p.id) ?? p);
+  }
+
+  const platformSource: Record<Platform, "live" | "mock"> = {
+    reddit:   redditSource,
+    twitter:  twitterSource,
+    linkedin: linkedinSource,
+  };
+
+  const response = buildResponse(redditPosts, twitterPosts, linkedinPosts, platformSource);
   cache = { data: response, expiresAt: Date.now() + CACHE_TTL };
   return NextResponse.json(response);
 }
