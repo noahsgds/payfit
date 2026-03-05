@@ -192,7 +192,7 @@ export async function GET(request: Request) {
   const [gptRes, geminiRes, groqRes, mistralRes, commandRes] = await Promise.allSettled([
     callOpenAICompat(openai, "gpt-4o-mini"),
     openrouter
-      ? callOpenAICompat(openrouter, "google/gemma-3n-e4b-it:free", OR_HEADERS)
+      ? callOpenAICompat(openrouter, "google/gemma-3-4b-it:free", OR_HEADERS)
       : Promise.reject("no key"),
     groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")  : Promise.reject("no key"),
     mistral ? callOpenAICompat(mistral, "mistral-small-latest")     : Promise.reject("no key"),
