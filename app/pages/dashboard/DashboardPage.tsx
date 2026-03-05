@@ -3,9 +3,7 @@
 import {
   Search,
   Globe,
-  BarChart2,
   MessageSquare,
-  Bot,
   TrendingUp,
   ArrowRight,
 } from "lucide-react";
@@ -33,14 +31,6 @@ const trafficData = [
 ];
 
 const quickStats = [
-  {
-    id: "dust-agents" as PageId,
-    label: "Agents IA actifs",
-    value: "3",
-    icon: <Bot size={16} />,
-    color: "#8B5CF6",
-    sub: "Dust connectés",
-  },
   {
     id: "seo-positioning" as PageId,
     label: "Mots-clés top 3",
@@ -103,17 +93,17 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           </p>
           <div className="flex gap-3 mt-4">
             <button
-              onClick={() => onNavigate("dust-agents")}
+              onClick={() => onNavigate("seo-positioning")}
               className="flex items-center gap-2 bg-[#1B6EF3] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#1549C7] transition-colors"
             >
-              <Bot size={14} />
-              Lancer un agent IA
+              <Search size={14} />
+              Voir le SEO
             </button>
             <button
-              onClick={() => onNavigate("seo-positioning")}
+              onClick={() => onNavigate("geo-positioning")}
               className="flex items-center gap-2 bg-white/10 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-white/20 transition-colors"
             >
-              Voir le SEO
+              Positionnement GEO
               <ArrowRight size={14} />
             </button>
           </div>
@@ -121,7 +111,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {quickStats.map((stat) => (
           <button
             key={stat.id}
@@ -238,12 +228,6 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                 page: "geo-positioning" as PageId,
               },
               {
-                label: "Concurrents",
-                score: 74,
-                color: "#F59E0B",
-                page: "competitive-analysis" as PageId,
-              },
-              {
                 label: "Social",
                 score: 58,
                 color: "#EF4444",
@@ -309,12 +293,6 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
               time: "Il y a 1h",
               status: "warning",
             },
-            {
-              agent: "Agent Concurrent",
-              action: "Sage HR a publié 3 nouvelles pages optimisées",
-              time: "Il y a 2h",
-              status: "alert",
-            },
           ].map((item, i) => (
             <div
               key={i}
@@ -326,9 +304,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                     ? "bg-emerald-500"
                     : item.status === "info"
                     ? "bg-blue-500"
-                    : item.status === "warning"
-                    ? "bg-amber-500"
-                    : "bg-red-500"
+                    : "bg-amber-500"
                 }`}
               />
               <div className="flex-1 min-w-0">

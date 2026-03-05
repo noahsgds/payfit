@@ -8,10 +8,6 @@ const pageTitles: Record<PageId, { title: string; subtitle: string }> = {
     title: "Dashboard",
     subtitle: "Vue d'ensemble de votre performance SEO",
   },
-  "dust-agents": {
-    title: "Agents IA Dust",
-    subtitle: "Connectez et gérez vos agents d'intelligence artificielle",
-  },
   "seo-positioning": {
     title: "Positionnement SEO",
     subtitle: "Analyse des positions et mots-clés organiques de PayFit",
@@ -20,10 +16,6 @@ const pageTitles: Record<PageId, { title: string; subtitle: string }> = {
     title: "Positionnement GEO",
     subtitle:
       "Générative Engine Optimization — visibilité dans les réponses IA",
-  },
-  "competitive-analysis": {
-    title: "Analyse Concurrentielle",
-    subtitle: "Comparez PayFit face à ses concurrents clés",
   },
   "social-listening": {
     title: "Social Listening",

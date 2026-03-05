@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import {
-  Bot,
   Search,
   Globe,
-  BarChart2,
   MessageSquare,
   ChevronLeft,
   ChevronRight,
@@ -17,10 +15,8 @@ import {
 
 export type PageId =
   | "dashboard"
-  | "dust-agents"
   | "seo-positioning"
   | "geo-positioning"
-  | "competitive-analysis"
   | "social-listening";
 
 interface NavItem {
@@ -33,12 +29,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
   {
-    id: "dust-agents",
-    label: "Agents IA Dust",
-    icon: <Bot size={18} />,
-    badge: "3",
-  },
-  {
     id: "seo-positioning",
     label: "Positionnement SEO",
     icon: <Search size={18} />,
@@ -48,11 +38,6 @@ const navItems: NavItem[] = [
     label: "Positionnement GEO",
     icon: <Globe size={18} />,
     badge: "New",
-  },
-  {
-    id: "competitive-analysis",
-    label: "Analyse Concurrentielle",
-    icon: <BarChart2 size={18} />,
   },
   {
     id: "social-listening",
