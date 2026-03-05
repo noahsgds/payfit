@@ -439,7 +439,7 @@ export async function GET() {
   }
 
   const openaiKey  = process.env.OPENAI_API_KEY;
-  const apifyToken = process.env.APIFY_API_TOKEN;
+  const apifyToken = process.env.APIFY_TOKEN;
 
   const apify = apifyToken ? new ApifyClient({ token: apifyToken }) : null;
 
