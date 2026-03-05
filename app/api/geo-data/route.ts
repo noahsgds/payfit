@@ -18,18 +18,23 @@ export const THEMES = [
 ];
 
 // Concise list format: each answer is a comma-separated ranked list.
-// ~150-200 output tokens total vs ~450 before → 60% cheaper, 2× the themes.
+// ~200-300 output tokens total vs ~450 before → cheaper, 2× the themes.
 const BATCH_PROMPT = `Tu es un expert en logiciels RH et paie en France.
-Pour chaque thème, cite les 5 meilleures solutions en ordre décroissant de pertinence, séparées par des virgules. Format strict : numéro) sol1, sol2, sol3, sol4, sol5
+Pour chaque thème numéroté, cite les 5 meilleures solutions logicielles en ordre décroissant de pertinence, séparées par des virgules.
+Format strict (sans markdown, sans explication) :
+1. sol1, sol2, sol3, sol4, sol5
+2. sol1, sol2, sol3, sol4, sol5
+...
 
-1) Logiciel de paie pour PME
-2) SIRH pour entreprise 50-200 salariés
-3) Automatisation de la gestion de la paie
-4) Outils RH pour PME françaises
-5) Gestion des congés et absences
-6) Notes de frais en ligne
-7) Onboarding RH digital
-8) Conformité paie et DSN`;
+Thèmes :
+1. Logiciel de paie pour PME
+2. SIRH pour entreprise 50-200 salariés
+3. Automatisation de la gestion de la paie
+4. Outils RH pour PME françaises
+5. Gestion des congés et absences
+6. Notes de frais en ligne
+7. Onboarding RH digital
+8. Conformité paie et DSN`;
 
 const KNOWN_SOLUTIONS = [
   "payfit", "silae", "sage", "cegid", "lucca", "factorial",
@@ -72,11 +77,17 @@ export interface GeoApiResponse {
 
 function parseThemes(text: string): string[] {
   const sections: string[] = new Array(THEMES.length).fill("");
-  for (const line of text.split("\n")) {
-    const m = line.match(/^(\d+)[.)]\s*(.+)/);
+  // Strip markdown: bold markers, headers, leading symbols
+  const clean = text.replace(/\*\*/g, "").replace(/^#+\s*/gm, "");
+  for (const line of clean.split("\n")) {
+    // Match "1." "1)" "1:" "1 -" with optional leading whitespace
+    const m = line.match(/^\s*(\d+)[.):\-]\s*(.+)/);
     if (m) {
       const idx = parseInt(m[1], 10) - 1;
-      if (idx >= 0 && idx < THEMES.length) sections[idx] = m[2].trim();
+      if (idx >= 0 && idx < THEMES.length) {
+        // Remove any remaining inline markdown (*italic*, etc.)
+        sections[idx] = m[2].replace(/[*_`]/g, "").trim();
+      }
     }
   }
   return sections;
@@ -129,7 +140,7 @@ async function callOpenAICompat(
         { role: "system", content: SYSTEM_MSG },
         { role: "user",   content: BATCH_PROMPT },
       ],
-      max_tokens: 300,   // list format is very compact
+      max_tokens: 450,   // 8 lines × ~40 tokens = ~320 min, keep margin
       temperature: 0.2,  // lower = more stable rankings over time
     },
     extraHeaders ? { headers: extraHeaders } : undefined
@@ -184,12 +195,12 @@ export async function GET(request: Request) {
     callOpenAICompat(openai, "gpt-4o-mini"),
     geminiModel.generateContent({
       contents: [{ role: "user", parts: [{ text: BATCH_PROMPT }] }],
-      generationConfig: { maxOutputTokens: 300, temperature: 0.2 },
+      generationConfig: { maxOutputTokens: 450, temperature: 0.2 },
     }),
     groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")               : Promise.reject("no key"),
     mistral ? callOpenAICompat(mistral, "mistral-small-latest")                  : Promise.reject("no key"),
     openrouter
-      ? callOpenAICompat(openrouter, "google/gemma-2-9b-it:free", {
+      ? callOpenAICompat(openrouter, "qwen/qwen-2.5-7b-instruct:free", {
           "HTTP-Referer": "https://payfit.com",
           "X-Title": "PayFit GEO Dashboard",
         })
@@ -212,7 +223,7 @@ export async function GET(request: Request) {
     ["Gemini",       getText(geminiRes, true)],
     ["Llama (Groq)", getText(groqRes)],
     ["Mistral",      getText(mistralRes)],
-    ["Gemma (OR)",   getText(orRes)],
+    ["Qwen (OR)",    getText(orRes)],
   ];
 
   const engines = engineDefs
