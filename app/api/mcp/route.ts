@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       result: {
         tools: [
           {
-            name: "store_result",
+            name: "payfit_mcp_12",
             description: "Stocke le résultat généré pour un jobId donné",
             inputSchema: {
               type: "object",
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
   if (method === "tools/call") {
     const params = body.params as { name: string; arguments: Record<string, string> };
 
-    if (params?.name !== "store_result") {
+    if (params?.name !== "payfit_mcp_12") {
       return NextResponse.json({
         jsonrpc: "2.0",
         id,
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     try {
       await setJobResult(jobId, content);
     } catch (e) {
-      console.error("[mcp store_result]", e);
+      console.error("[mcp payfit_mcp_12]", e);
       return NextResponse.json({
         jsonrpc: "2.0",
         id,
