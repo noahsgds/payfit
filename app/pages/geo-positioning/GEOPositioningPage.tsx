@@ -21,7 +21,41 @@ const ENGINE_META: Record<string, { logo: string; color: string }> = {
 
 const SECTOR_AVG = 52;
 
-// ─── Rank cell ────────────────────────────────────────────────────────────────
+const BRAND_COLORS: Record<string, string> = {
+  payfit:    "#2563EB",
+  silae:     "#EC4899",
+  sage:      "#F97316",
+  cegid:     "#A855F7",
+  lucca:     "#10B981",
+  factorial: "#EF4444",
+  nibelis:   "#06B6D4",
+  eurecia:   "#84CC16",
+  kelio:     "#F59E0B",
+  adp:       "#DC2626",
+  combo:     "#8B5CF6",
+  workday:   "#0EA5E9",
+  bamboohr:  "#22C55E",
+};
+
+const SHORT_LABELS: Record<string, string> = {
+  "Logiciel de paie PME":  "Paie PME",
+  "SIRH 50-200 salariés":  "SIRH",
+  "Automatisation paie":   "Auto. paie",
+  "Outils RH PME":         "RH PME",
+  "Congés & absences":     "Congés",
+  "Notes de frais":        "NDF",
+  "Onboarding RH digital": "Onboarding",
+  "Conformité DSN/paie":   "DSN/Paie",
+};
+
+function brandColor(name: string) {
+  return BRAND_COLORS[name.toLowerCase()] ?? "#94A3B8";
+}
+function cap(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function RankCell({ rank }: { rank: number | null }) {
   if (rank === null) {
@@ -40,6 +74,27 @@ function RankCell({ rank }: { rank: number | null }) {
   return (
     <div className={`w-full h-8 rounded-lg flex items-center justify-center text-xs ${cls}`}>
       #{rank}
+    </div>
+  );
+}
+
+function HeatCell({ count, maxCount, color }: { count: number; maxCount: number; color: string }) {
+  if (count === 0) {
+    return (
+      <div className="w-full h-9 rounded-lg bg-slate-50 flex items-center justify-center">
+        <span className="text-slate-300 text-xs">—</span>
+      </div>
+    );
+  }
+  const ratio = count / maxCount;
+  const alpha = Math.round((0.15 + ratio * 0.85) * 255).toString(16).padStart(2, "0");
+  const textColor = ratio > 0.55 ? "#fff" : color;
+  return (
+    <div
+      className="w-full h-9 rounded-lg flex items-center justify-center text-xs font-semibold"
+      style={{ backgroundColor: `${color}${alpha}`, color: textColor }}
+    >
+      {count}/{maxCount}
     </div>
   );
 }
@@ -72,16 +127,67 @@ export default function GEOPositioningPage() {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const visData = data
-    ? data.engines.map((e) => ({
-        name:   e.engine,
-        payfit: e.visibility,
-        color:  ENGINE_META[e.engine]?.color ?? "#64748b",
-      }))
-    : [];
+  const totalSlots = data
+    ? data.engines[0].themes.length * data.engines.length
+    : 0;
 
-  const totalSlots = (data?.engines[0]?.themes.length ?? 0) * (data?.engines.length ?? 0);
-  const maxCompCount = data?.topCompetitors[0]?.count ?? 1;
+  const payfitCount = data
+    ? data.engines.reduce((s, e) => s + e.themes.filter(t => t.mentioned).length, 0)
+    : 0;
+
+  // Part de voix : PayFit + top concurrents
+  const sovData = data ? [
+    { name: "PayFit", rawName: "payfit", pct: Math.round(payfitCount / totalSlots * 100), isPayfit: true },
+    ...data.topCompetitors.slice(0, 6).map(c => ({
+      name:    cap(c.name),
+      rawName: c.name,
+      pct:     Math.round(c.count / totalSlots * 100),
+      isPayfit: false,
+    })),
+  ].sort((a, b) => b.pct - a.pct) : [];
+
+  // Rang moyen : PayFit + top concurrents
+  const compRankAccum: Record<string, number[]> = {};
+  if (data) {
+    for (const engine of data.engines)
+      for (const theme of engine.themes)
+        for (const cr of theme.competitorRanks)
+          (compRankAccum[cr.name] ??= []).push(cr.rank);
+  }
+  const rankData = data ? [
+    ...(data.globalAvgRank != null
+      ? [{ name: "PayFit", rawName: "payfit", avgRank: data.globalAvgRank, isPayfit: true }]
+      : []),
+    ...data.topCompetitors.slice(0, 5).flatMap(c => {
+      const ranks = compRankAccum[c.name] ?? [];
+      if (!ranks.length) return [];
+      const avg = Math.round(ranks.reduce((a, b) => a + b, 0) / ranks.length * 10) / 10;
+      return [{ name: cap(c.name), rawName: c.name, avgRank: avg, isPayfit: false }];
+    }),
+  ].sort((a, b) => a.avgRank - b.avgRank) : [];
+
+  // Heatmap concurrents × thèmes
+  const topCompNames   = data?.topCompetitors.slice(0, 5).map(c => c.name) ?? [];
+  const themeLabels    = data?.engines[0].themes.map(t => t.label) ?? [];
+  const maxEngines     = data?.engines.length ?? 1;
+
+  const heatRows = data ? [
+    {
+      name: "PayFit", rawName: "payfit", isPayfit: true,
+      counts: themeLabels.map((_, i) => data.engines.filter(e => e.themes[i].mentioned).length),
+    },
+    ...topCompNames.map(comp => ({
+      name: cap(comp), rawName: comp, isPayfit: false,
+      counts: themeLabels.map((_, i) =>
+        data.engines.filter(e => e.themes[i].competitors.includes(comp)).length
+      ),
+    })),
+  ] : [];
+
+  // Visibility per engine (existing chart)
+  const visData = data
+    ? data.engines.map(e => ({ name: e.engine, payfit: e.visibility, color: ENGINE_META[e.engine]?.color ?? "#64748b" }))
+    : [];
 
   return (
     <div className="p-6 space-y-6 fade-in">
@@ -107,15 +213,15 @@ export default function GEOPositioningPage() {
 
         <h2 className="text-xl font-bold mb-1">Visibilité PayFit dans les IA génératives</h2>
         <p className="text-slate-400 text-sm mb-4">
-          8 thèmes · {data ? data.engines.length : "5"} moteurs · 1 prompt/moteur · cache 24h
+          8 thèmes · {data ? data.engines.length : "3"} moteurs · 1 prompt/moteur · cache 24h
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: "Score GEO global", value: loading ? "…" : data ? `${data.globalVisibility}%` : "—",                               icon: <Globe size={14} /> },
-            { label: "Moteurs actifs",   value: loading ? "…" : data ? `${data.engines.length}`     : "—",                               icon: <Brain size={14} /> },
-            { label: "Thèmes analysés",  value: loading ? "…" : data ? `${data.engines[0]?.themes.length ?? 0}` : "—",                   icon: <Eye size={14} /> },
-            { label: "Rang moyen",       value: loading ? "…" : data?.globalAvgRank != null ? `#${data.globalAvgRank}` : "—",            icon: <TrendingUp size={14} /> },
+            { label: "Score GEO global",  value: loading ? "…" : data ? `${data.globalVisibility}%` : "—",                               icon: <Globe size={14} /> },
+            { label: "Moteurs actifs",    value: loading ? "…" : data ? `${data.engines.length}` : "—",                                   icon: <Brain size={14} /> },
+            { label: "Thèmes analysés",   value: loading ? "…" : data ? `${data.engines[0]?.themes.length ?? 0}` : "—",                   icon: <Eye size={14} /> },
+            { label: "Rang moyen",        value: loading ? "…" : data?.globalAvgRank != null ? `#${data.globalAvgRank}` : "—",            icon: <TrendingUp size={14} /> },
           ].map((s) => (
             <div key={s.label} className="bg-white/10 rounded-xl p-3">
               <div className="flex items-center gap-1.5 text-blue-300 mb-1">
@@ -146,9 +252,9 @@ export default function GEOPositioningPage() {
         </div>
       )}
 
-      {/* ── Positioning matrix ── */}
+      {/* ── Matrice PayFit ── */}
       <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-        <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Matrice de positionnement</h3>
+        <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Matrice de positionnement PayFit</h3>
         <p className="text-xs text-slate-400 mb-4">Rang de PayFit par thème et par moteur IA · — = non cité</p>
 
         {loading ? (
@@ -177,9 +283,7 @@ export default function GEOPositioningPage() {
                     <tr key={row.label}>
                       <td className="py-1.5 pr-3 text-slate-600 font-medium whitespace-nowrap">{row.label}</td>
                       {row.ranks.map((rank, i) => (
-                        <td key={i} className="py-1 px-1">
-                          <RankCell rank={rank} />
-                        </td>
+                        <td key={i} className="py-1 px-1"><RankCell rank={rank} /></td>
                       ))}
                       <td className="py-1 px-1">
                         <div className={`w-full h-8 rounded-lg flex items-center justify-center text-xs font-semibold
@@ -200,14 +304,13 @@ export default function GEOPositioningPage() {
           <p className="text-sm text-slate-400 text-center py-8">Aucune donnée — cliquez sur Rafraîchir</p>
         )}
 
-        {/* Legend */}
         <div className="flex flex-wrap gap-3 mt-4 pt-3 border-t border-slate-50">
           {[
-            { label: "#1 — Leader",      cls: "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300" },
-            { label: "#2 — Bon",         cls: "bg-blue-100 text-blue-700" },
-            { label: "#3 — Visible",     cls: "bg-blue-50 text-blue-600" },
-            { label: "#4-5 — Marginal",  cls: "bg-amber-50 text-amber-600" },
-            { label: "— Non cité",       cls: "bg-slate-50 text-slate-300" },
+            { label: "#1 — Leader",     cls: "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300" },
+            { label: "#2 — Bon",        cls: "bg-blue-100 text-blue-700" },
+            { label: "#3 — Visible",    cls: "bg-blue-50 text-blue-600" },
+            { label: "#4-5 — Marginal", cls: "bg-amber-50 text-amber-600" },
+            { label: "— Non cité",      cls: "bg-slate-50 text-slate-300" },
           ].map((l) => (
             <div key={l.label} className="flex items-center gap-1.5">
               <div className={`w-7 h-5 rounded text-[10px] flex items-center justify-center ${l.cls}`}>
@@ -219,67 +322,158 @@ export default function GEOPositioningPage() {
         </div>
       </div>
 
-      {/* ── Charts row ── */}
+      {/* ── Paysage concurrentiel ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        {/* Visibility per engine */}
+        {/* Part de voix */}
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Visibilité par moteur</h3>
-          <p className="text-xs text-slate-400 mb-3">% de thèmes où PayFit apparaît · ligne = moy. secteur</p>
+          <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Part de voix globale</h3>
+          <p className="text-xs text-slate-400 mb-3">
+            % des slots IA où chaque marque est citée · {totalSlots} slots total ({maxEngines} moteurs × 8 thèmes)
+          </p>
           {loading ? (
-            <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">Chargement…</div>
-          ) : visData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={visData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+            <div className="h-[260px] flex items-center justify-center text-sm text-slate-400">Chargement…</div>
+          ) : sovData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={sovData} layout="vertical" margin={{ top: 0, right: 28, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+                <YAxis type="category" dataKey="name" width={72}
+                  tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
                 <Tooltip
                   contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
-                  formatter={(v: number | undefined) => [`${v ?? 0}%`, "Visibilité"]}
+                  formatter={(v) => [`${v ?? 0}%`, "Présence"]}
                 />
-                <ReferenceLine y={SECTOR_AVG} stroke="#CBD5E1" strokeDasharray="4 3"
-                  label={{ value: "moy. secteur", position: "insideTopRight", fontSize: 9, fill: "#94a3b8" }} />
-                <Bar dataKey="payfit" radius={[6, 6, 0, 0]}>
-                  {visData.map((e) => <Cell key={e.name} fill={e.color} />)}
+                <Bar dataKey="pct" radius={[0, 6, 6, 0]} maxBarSize={22}>
+                  {sovData.map((e) => (
+                    <Cell key={e.name} fill={brandColor(e.rawName)} opacity={e.isPayfit ? 1 : 0.72} />
+                  ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">Aucune donnée</div>
+            <div className="h-[260px] flex items-center justify-center text-sm text-slate-400">Aucune donnée</div>
           )}
         </div>
 
-        {/* Top competitors */}
+        {/* Rang moyen comparé */}
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Concurrents les plus cités</h3>
-          <p className="text-xs text-slate-400 mb-4">Fréquence sur l&apos;ensemble des réponses IA</p>
+          <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Rang moyen comparé</h3>
+          <p className="text-xs text-slate-400 mb-3">Position moyenne dans les listes IA · #1 = meilleur placement</p>
           {loading ? (
-            <div className="space-y-2.5">{[...Array(6)].map((_, i) => (
-              <div key={i} className="h-7 bg-slate-50 rounded-xl animate-pulse" />
-            ))}</div>
-          ) : data && data.topCompetitors.length > 0 ? (
-            <div className="space-y-2.5">
-              {data.topCompetitors.map(({ name, count }) => (
-                <div key={name} className="flex items-center gap-3">
-                  <span className="text-xs text-slate-600 capitalize w-20 flex-shrink-0">{name}</span>
-                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-slate-400 rounded-full"
-                      style={{ width: `${Math.round((count / maxCompCount) * 100)}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-slate-400 tabular-nums w-8 text-right">{count}×</span>
-                </div>
-              ))}
-            </div>
+            <div className="h-[260px] flex items-center justify-center text-sm text-slate-400">Chargement…</div>
+          ) : rankData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={rankData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 5.5]} reversed tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  axisLine={false} tickLine={false} tickFormatter={v => v === 0 ? "" : `#${v}`} />
+                <Tooltip
+                  contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
+                  formatter={(v) => [`#${v ?? 0}`, "Rang moyen"]}
+                />
+                <Bar dataKey="avgRank" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                  {rankData.map((e) => (
+                    <Cell key={e.name} fill={brandColor(e.rawName)} opacity={e.isPayfit ? 1 : 0.72} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           ) : (
-            <p className="text-sm text-slate-400 text-center pt-8">Aucune donnée</p>
+            <div className="h-[260px] flex items-center justify-center text-sm text-slate-400">Aucune donnée</div>
           )}
         </div>
       </div>
 
-      {/* ── Raw responses ── */}
+      {/* ── Heatmap concurrents × thèmes ── */}
+      <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+        <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Présence par thème</h3>
+        <p className="text-xs text-slate-400 mb-4">
+          Nombre de moteurs citant chaque marque · par thème · PayFit vs top concurrents
+        </p>
+
+        {loading ? (
+          <div className="space-y-2">{[...Array(6)].map((_, i) => (
+            <div key={i} className="h-9 bg-slate-50 rounded-xl animate-pulse" />
+          ))}</div>
+        ) : heatRows.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr>
+                  <th className="text-left text-slate-400 font-medium py-1.5 pr-3 w-24">Marque</th>
+                  {themeLabels.map(label => (
+                    <th key={label} title={label}
+                      className="text-center text-slate-400 font-medium py-1.5 px-1 min-w-[70px]">
+                      {SHORT_LABELS[label] ?? label.split(" ")[0]}
+                    </th>
+                  ))}
+                  <th className="text-center text-slate-400 font-medium py-1.5 px-1 w-16">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {heatRows.map(row => {
+                  const total    = row.counts.reduce((a, b) => a + b, 0);
+                  const maxTotal = themeLabels.length * maxEngines;
+                  const color    = brandColor(row.rawName);
+                  return (
+                    <tr key={row.name} className={row.isPayfit ? "bg-blue-50/40" : ""}>
+                      <td className="py-1.5 pr-3 font-semibold whitespace-nowrap" style={{ color }}>
+                        {row.isPayfit && <span className="mr-1">★</span>}{row.name}
+                      </td>
+                      {row.counts.map((count, i) => (
+                        <td key={i} className="py-1 px-1">
+                          <HeatCell count={count} maxCount={maxEngines} color={color} />
+                        </td>
+                      ))}
+                      <td className="py-1 px-1">
+                        <div className="w-full h-9 rounded-lg flex items-center justify-center text-xs font-bold"
+                          style={{ color, background: `${color}1A` }}>
+                          {total}/{maxTotal}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-400 text-center py-8">Aucune donnée</p>
+        )}
+      </div>
+
+      {/* ── Visibilité par moteur ── */}
+      <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+        <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Visibilité PayFit par moteur</h3>
+        <p className="text-xs text-slate-400 mb-3">% de thèmes où PayFit apparaît · ligne = moy. secteur estimée</p>
+        {loading ? (
+          <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">Chargement…</div>
+        ) : visData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={visData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+              <Tooltip
+                contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
+                formatter={(v) => [`${v ?? 0}%`, "Visibilité"]}
+              />
+              <ReferenceLine y={SECTOR_AVG} stroke="#CBD5E1" strokeDasharray="4 3"
+                label={{ value: "moy. secteur", position: "insideTopRight", fontSize: 9, fill: "#94a3b8" }} />
+              <Bar dataKey="payfit" radius={[6, 6, 0, 0]}>
+                {visData.map((e) => <Cell key={e.name} fill={e.color} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">Aucune donnée</div>
+        )}
+      </div>
+
+      {/* ── Réponses brutes ── */}
       {!loading && data && (
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
           <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Réponses brutes par moteur</h3>

@@ -49,7 +49,8 @@ export interface ThemeResult {
   rawText: string;          // the comma-separated list as returned by the AI
   mentioned: boolean;
   rank: number | null;      // position in the list (1 = best)
-  competitors: string[];    // other solutions cited
+  competitors: string[];    // other solutions cited (names only)
+  competitorRanks: { name: string; rank: number }[]; // with position
 }
 
 export interface EngineResult {
@@ -102,11 +103,19 @@ function analyzeTheme(rawText: string, themeId: number): ThemeResult {
   const payfitIdx = items.findIndex((s) => s.includes("payfit"));
   const rank = payfitIdx !== -1 ? payfitIdx + 1 : null;
 
-  const competitors = items
-    .filter((_, i) => i !== payfitIdx)
-    .flatMap((item) => KNOWN_SOLUTIONS.filter((s) => item.includes(s)));
+  const competitors: string[] = [];
+  const competitorRanks: { name: string; rank: number }[] = [];
+  items.forEach((item, idx) => {
+    if (idx === payfitIdx) return;
+    KNOWN_SOLUTIONS.forEach((sol) => {
+      if (item.includes(sol)) {
+        competitors.push(sol);
+        competitorRanks.push({ name: sol, rank: idx + 1 });
+      }
+    });
+  });
 
-  return { theme, label, rawText, mentioned, rank, competitors };
+  return { theme, label, rawText, mentioned, rank, competitors, competitorRanks };
 }
 
 function buildEngineResult(engine: string, fullResponse: string): EngineResult {
