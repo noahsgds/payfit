@@ -3,7 +3,7 @@
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useSeoData } from "../../context/SeoDataContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -40,20 +40,13 @@ function PositionBadge({ position }: { position: number | null }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SEOPositioningPage() {
-  const { seoData, loading, polling, pollSeconds, triggerRefresh } = useSeoData();
+  const { seoData, loading } = useSeoData();
 
   const trendChartData = seoData?.trends?.labels?.length
     ? buildTrendChartData(seoData.trends.labels, seoData.trends.series)
     : [];
 
   const serp = seoData?.serp ?? [];
-
-  const serpDate = seoData?.serpRunFinishedAt
-    ? new Date(seoData.serpRunFinishedAt).toLocaleString("fr-FR", {
-        day: "2-digit", month: "2-digit", year: "numeric",
-        hour: "2-digit", minute: "2-digit",
-      })
-    : null;
 
   const lastUpdated = seoData?.timestamp
     ? new Date(seoData.timestamp).toLocaleString("fr-FR", {
@@ -114,41 +107,18 @@ export default function SEOPositioningPage() {
 
       {/* SERP */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-semibold text-slate-900 text-sm">Positions Google — PayFit.com</h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {polling
-                ? <span className="text-blue-500">Scrape en cours… {pollSeconds}s</span>
-                : serp.length > 0
-                ? <>Données SERP réelles · France{serpDate && <> · dernier run {serpDate}</>}</>
-                : seoData?.serpError
-                ? <span className="text-red-500">{seoData.serpError}</span>
-                : "Aucun run disponible — cliquez sur Rafraîchir"}
-            </p>
-          </div>
-          <button
-            onClick={triggerRefresh}
-            disabled={polling}
-            className="flex items-center gap-1.5 text-xs bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50 shrink-0"
-          >
-            <RefreshCw size={12} className={polling ? "animate-spin" : ""} />
-            {polling ? `${pollSeconds}s…` : "Rafraîchir"}
-          </button>
+        <div className="p-5 border-b border-slate-100">
+          <h3 className="font-semibold text-slate-900 text-sm">Positions Google — PayFit.com</h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {seoData?.serpError
+              ? <span className="text-red-500">{seoData.serpError}</span>
+              : serp.length > 0
+              ? <>Données SERP réelles · France · <span className="text-emerald-600">Serper.dev</span></>
+              : "Ajoutez SERPER_API_KEY dans les variables d'env Vercel"}
+          </p>
         </div>
 
-        {polling && serp.length === 0 ? (
-          <div className="p-6 space-y-3">
-            {Array.from({ length: 9 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 animate-pulse">
-                <div className="h-4 bg-slate-100 rounded w-48" />
-                <div className="h-8 w-8 bg-slate-100 rounded-xl" />
-                <div className="h-4 bg-slate-100 rounded w-8" />
-                <div className="h-4 bg-slate-100 rounded w-32" />
-              </div>
-            ))}
-          </div>
-        ) : serp.length > 0 ? (
+        {serp.length > 0 ? (
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50">
@@ -182,7 +152,7 @@ export default function SEOPositioningPage() {
           </table>
         ) : (
           <div className="p-8 text-center text-sm text-slate-400">
-            Cliquez sur &quot;Rafraîchir&quot; pour lancer un scrape Apify (~2 min).
+            Aucune donnée SERP disponible.
           </div>
         )}
       </div>

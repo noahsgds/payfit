@@ -24,8 +24,6 @@ export const TRACKED_KEYWORDS = [
 
 const TRENDS_KEYWORDS = ["PayFit", "logiciel paie", "logiciel RH"];
 
-const ACTOR_ID = "scraperlink~google-search-results-serp-scraper";
-
 // ─── In-memory cache ───────────────────────────────────────────────────────────
 let cache: { data: unknown; ts: number } | null = null;
 
@@ -71,80 +69,44 @@ async function fetchGoogleTrends() {
   }
 }
 
-// ─── Apify SERP — lit le dernier run (pas de déclenchement synchrone) ─────────
+// ─── Serper.dev SERP ───────────────────────────────────────────────────────────
 
-interface ApifyResult {
+interface SerperOrganic {
   position: number;
-  url: string;
   title: string;
-  description: string;
+  link: string;
 }
 
-interface ApifyPage {
-  page_number: number;
-  search_term: string;
-  results: ApifyResult[];
-}
+async function fetchSerperSerp() {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) return [];
 
-export async function fetchLastApifyRun(): Promise<{
-  serp: { keyword: string; position: number | null; url: string | null; title: string | null }[];
-  runStatus: string | null;
-  runFinishedAt: string | null;
-}> {
-  const token = process.env.APIFY_TOKEN;
-  if (!token) return { serp: [], runStatus: null, runFinishedAt: null };
+  const results = await Promise.all(
+    TRACKED_KEYWORDS.map(async (keyword) => {
+      const res = await fetch("https://google.serper.dev/search", {
+        method: "POST",
+        headers: {
+          "X-API-KEY": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ q: keyword, gl: "fr", hl: "fr", num: 100 }),
+      });
 
-  // 1. Récupère le dernier run SUCCEEDED
-  const runRes = await fetch(
-    `https://api.apify.com/v2/acts/${ACTOR_ID}/runs/last?token=${token}&status=SUCCEEDED`
+      if (!res.ok) return { keyword, position: null, url: null, title: null };
+
+      const data = await res.json() as { organic?: SerperOrganic[] };
+      const payfit = (data.organic ?? []).find((r) => r.link?.includes("payfit.com"));
+
+      return {
+        keyword,
+        position: payfit?.position ?? null,
+        url: payfit?.link ?? null,
+        title: payfit?.title ?? null,
+      };
+    })
   );
 
-  if (!runRes.ok) {
-    throw new Error(`Apify last run: HTTP ${runRes.status}`);
-  }
-
-  const runData = await runRes.json() as {
-    data?: { defaultDatasetId?: string; status?: string; finishedAt?: string };
-  };
-
-  const datasetId = runData?.data?.defaultDatasetId;
-  const runStatus = runData?.data?.status ?? null;
-  const runFinishedAt = runData?.data?.finishedAt ?? null;
-
-  if (!datasetId) return { serp: [], runStatus, runFinishedAt };
-
-  // 2. Lit les items du dataset
-  const dsRes = await fetch(
-    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&clean=true`
-  );
-
-  if (!dsRes.ok) throw new Error(`Apify dataset: HTTP ${dsRes.status}`);
-
-  const pages: ApifyPage[] = await dsRes.json();
-
-  const serp = TRACKED_KEYWORDS.map((keyword) => {
-    const kwPages = pages.filter(
-      (p) => p.search_term?.toLowerCase() === keyword.toLowerCase()
-    );
-
-    const allResults = kwPages.flatMap((p) =>
-      (p.results ?? []).map((r) => ({
-        ...r,
-        absolutePosition: (p.page_number - 1) * 10 + r.position,
-      }))
-    );
-
-    const payfit = allResults.find((r) => r.url?.includes("payfit.com"));
-
-    return {
-      keyword,
-      position: payfit?.absolutePosition ?? null,
-      url: payfit?.url ?? null,
-      title: payfit?.title ?? null,
-    };
-  });
-
-  return { serp, runStatus, runFinishedAt };
+  return results;
 }
 
 // ─── GET /api/seo-data ─────────────────────────────────────────────────────────
@@ -154,26 +116,19 @@ export async function GET() {
     return NextResponse.json(cache.data);
   }
 
-  const [trends, serpResult] = await Promise.allSettled([
+  const [trends, serp] = await Promise.allSettled([
     fetchGoogleTrends(),
-    fetchLastApifyRun(),
+    fetchSerperSerp(),
   ]);
-
-  const serpValue =
-    serpResult.status === "fulfilled" ? serpResult.value : null;
 
   const data = {
     timestamp: new Date().toISOString(),
     trends:
-      trends.status === "fulfilled"
-        ? trends.value
-        : { labels: [], series: {} },
-    serp: serpValue?.serp ?? [],
-    serpRunStatus: serpValue?.runStatus ?? null,
-    serpRunFinishedAt: serpValue?.runFinishedAt ?? null,
+      trends.status === "fulfilled" ? trends.value : { labels: [], series: {} },
+    serp: serp.status === "fulfilled" ? serp.value : [],
     serpError:
-      serpResult.status === "rejected"
-        ? String((serpResult as PromiseRejectedResult).reason)
+      serp.status === "rejected"
+        ? String((serp as PromiseRejectedResult).reason)
         : null,
   };
 
