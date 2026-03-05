@@ -116,10 +116,9 @@ export default function SEOPositioningPage() {
   const [seoData, setSeoData] = useState<SeoData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load /data/seo-data.json
+  // Appel à l'API route Next.js — fetch Apify + Google Trends côté serveur
   useEffect(() => {
-    const basePath = process.env.NODE_ENV === "production" ? "/payfit" : "";
-    fetch(`${basePath}/data/seo-data.json`)
+    fetch("/api/seo-data")
       .then((r) => r.json())
       .then((d: SeoData) => setSeoData(d))
       .catch(() => setSeoData(null))
