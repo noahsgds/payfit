@@ -70,6 +70,19 @@ async function fetchGoogleTrends() {
 
 // ─── Apify SERP ────────────────────────────────────────────────────────────────
 
+interface ApifyResult {
+  position: number;
+  url: string;
+  title: string;
+  description: string;
+}
+
+interface ApifyPage {
+  page_number: number;
+  search_term: string;
+  results: ApifyResult[];
+}
+
 async function fetchApifySerp() {
   const token = process.env.APIFY_TOKEN;
   if (!token) return [];
@@ -80,7 +93,8 @@ async function fetchApifySerp() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        queries: TRACKED_KEYWORDS,
+        // L'acteur attend une chaîne séparée par des retours à la ligne
+        queries: TRACKED_KEYWORDS.join("\n"),
         countryCode: "fr",
         languageCode: "fr",
         maxItems: TRACKED_KEYWORDS.length * 10,
@@ -90,23 +104,29 @@ async function fetchApifySerp() {
 
   if (!res.ok) throw new Error(`Apify ${res.status}`);
 
-  const items: Array<Record<string, unknown>> = await res.json();
+  // Chaque item = une page de résultats pour un keyword
+  const pages: ApifyPage[] = await res.json();
 
   return TRACKED_KEYWORDS.map((keyword) => {
-    const kwItems = items.filter((item) => {
-      const q = String(item.searchQuery ?? item.query ?? "");
-      return q.toLowerCase() === keyword.toLowerCase();
-    });
-
-    const payfit = kwItems.find((r) =>
-      String(r.url ?? r.link ?? "").includes("payfit.com")
+    const kwPages = pages.filter(
+      (p) => p.search_term?.toLowerCase() === keyword.toLowerCase()
     );
+
+    // Aplatir les résultats avec la position absolue
+    const allResults = kwPages.flatMap((p) =>
+      (p.results ?? []).map((r) => ({
+        ...r,
+        absolutePosition: (p.page_number - 1) * 10 + r.position,
+      }))
+    );
+
+    const payfit = allResults.find((r) => r.url?.includes("payfit.com"));
 
     return {
       keyword,
-      position: (payfit?.position ?? payfit?.rank ?? null) as number | null,
-      url: (payfit?.url ?? payfit?.link ?? null) as string | null,
-      title: (payfit?.title ?? null) as string | null,
+      position: payfit?.absolutePosition ?? null,
+      url: payfit?.url ?? null,
+      title: payfit?.title ?? null,
     };
   });
 }

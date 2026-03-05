@@ -10,8 +10,16 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { ExternalLink } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface SerpResult {
+  keyword: string;
+  position: number | null;
+  url: string | null;
+  title: string | null;
+}
 
 interface SeoData {
   timestamp: string | null;
@@ -19,6 +27,7 @@ interface SeoData {
     labels: string[];
     series: Record<string, number[]>;
   };
+  serp: SerpResult[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -41,6 +50,26 @@ const TREND_COLORS: Record<string, string> = {
   "logiciel RH": "#F59E0B",
 };
 
+function PositionBadge({ position }: { position: number | null }) {
+  if (position === null)
+    return (
+      <span className="text-xs text-slate-400 font-medium">Non classé</span>
+    );
+  const color =
+    position <= 3
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : position <= 10
+      ? "bg-blue-50 text-blue-700 border-blue-200"
+      : "bg-slate-100 text-slate-600 border-slate-200";
+  return (
+    <span
+      className={`inline-flex items-center justify-center w-8 h-8 rounded-xl text-xs font-bold border ${color}`}
+    >
+      {position}
+    </span>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SEOPositioningPage() {
@@ -59,6 +88,8 @@ export default function SEOPositioningPage() {
     seoData?.trends?.labels?.length
       ? buildTrendChartData(seoData.trends.labels, seoData.trends.series)
       : [];
+
+  const serp = seoData?.serp ?? [];
 
   const lastUpdated = seoData?.timestamp
     ? new Date(seoData.timestamp).toLocaleString("fr-FR", {
@@ -80,6 +111,7 @@ export default function SEOPositioningPage() {
 
   return (
     <div className="p-6 space-y-6 fade-in">
+
       {/* Google Trends */}
       <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-1">
@@ -154,6 +186,62 @@ export default function SEOPositioningPage() {
           </div>
         )}
       </div>
+
+      {/* SERP positions */}
+      {serp.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100">
+            <h3 className="font-semibold text-slate-900 text-sm">
+              Positions Google — PayFit.com
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Données SERP réelles · France
+            </p>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-50">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Mot-clé</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Position</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Page</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 hidden sm:table-cell">URL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {serp.map((row, i) => (
+                <tr key={i} className="border-t border-slate-50 hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-slate-800">
+                    {row.keyword}
+                  </td>
+                  <td className="px-4 py-3">
+                    <PositionBadge position={row.position} />
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500">
+                    {row.position !== null
+                      ? `p.${Math.ceil(row.position / 10)}`
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    {row.url ? (
+                      <a
+                        href={row.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:underline truncate max-w-xs"
+                      >
+                        <ExternalLink size={10} />
+                        {row.url.replace("https://", "").split("/")[0]}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
