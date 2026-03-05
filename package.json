@@ -12,9 +12,11 @@
     "build:with-data": "node scripts/fetch-seo-data.mjs && next build"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "google-trends-api": "^4.9.2",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
+    "openai": "^6.25.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.7.0"
