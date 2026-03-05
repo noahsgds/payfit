@@ -22,6 +22,15 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+// Load .env.local manually (Next.js doesn't expose it to node scripts)
+const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "../.env.local");
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
+    const match = line.match(/^([^#=]+)=(.*)$/);
+    if (match) process.env[match[1].trim()] ??= match[2].trim();
+  }
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUTPUT_FILE = path.join(__dirname, "../public/data/seo-data.json");
 const CACHE_HOURS = parseInt(process.env.CACHE_HOURS ?? "24", 10);
@@ -116,7 +125,11 @@ async function fetchGoogleTrends() {
   }
 }
 
-// ─── Apify SERP Scraper ───────────────────────────────────────────────────────
+// ─── Apify SERP Scraper (scraperlink/google-search-results-serp-scraper) ──────
+// Actor ID: 563JCPLOqM1kMmbbP
+// Pricing: ~$1 / 1000 searches → 8 keywords ≈ $0.008 per run
+// Input:  { queries: string[], countryCode, languageCode }
+// Output: [{ position, title, url, snippet, searchQuery }]
 
 async function fetchApifySerp(existingSerp) {
   if (!APIFY_TOKEN) {
@@ -124,51 +137,55 @@ async function fetchApifySerp(existingSerp) {
     return existingSerp ?? [];
   }
 
-  console.log(`→ Running Apify SERP scraper for ${TRACKED_KEYWORDS.length} keywords...`);
-  console.log("  (This consumes Apify credits)");
+  console.log(`→ Running scraperlink/google-search-results-serp-scraper for ${TRACKED_KEYWORDS.length} keywords...`);
+  console.log(`  Est. cost: ~$${(TRACKED_KEYWORDS.length * 0.001).toFixed(3)}`);
 
   try {
-    // Run the actor synchronously (waits for results)
     const runRes = await fetch(
-      `https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}&maxItems=${TRACKED_KEYWORDS.length * 10}`,
+      `https://api.apify.com/v2/acts/scraperlink~google-search-results-serp-scraper/run-sync-get-dataset-items?token=${APIFY_TOKEN}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // Timeout: 5 min (actor is fast ~2s/search)
+        signal: AbortSignal.timeout(5 * 60 * 1000),
         body: JSON.stringify({
-          queries: TRACKED_KEYWORDS.join("\n"),
+          queries: TRACKED_KEYWORDS,
           countryCode: "fr",
           languageCode: "fr",
-          maxPagesPerQuery: 1,
-          resultsPerPage: 10,
+          maxItems: TRACKED_KEYWORDS.length * 10, // top 10 per keyword
         }),
       }
     );
 
     if (!runRes.ok) {
-      throw new Error(`Apify API error: ${runRes.status} ${await runRes.text()}`);
+      const body = await runRes.text();
+      throw new Error(`Apify API ${runRes.status}: ${body}`);
     }
 
     const items = await runRes.json();
-    console.log(`  ✓ Got ${items.length} SERP results`);
+    console.log(`  ✓ Got ${items.length} results`);
 
-    // Find PayFit's position in each SERP
+    // For each keyword, find PayFit's position in the SERP
     const serpData = TRACKED_KEYWORDS.map((keyword) => {
-      const results = items.filter(
-        (item) => item.searchQuery?.term?.toLowerCase() === keyword.toLowerCase()
-      );
+      const kwResults = items.filter((item) => {
+        const q = item.searchQuery ?? item.query ?? "";
+        return q.toLowerCase() === keyword.toLowerCase();
+      });
 
-      const payfitResult = results.find((r) =>
-        r.url?.includes("payfit.com")
+      const payfitResult = kwResults.find((r) =>
+        (r.url ?? r.link ?? "").includes("payfit.com")
       );
 
       return {
         keyword,
-        position: payfitResult?.rank ?? null,
-        url: payfitResult?.url ?? null,
+        position: payfitResult?.position ?? payfitResult?.rank ?? null,
+        url: payfitResult?.url ?? payfitResult?.link ?? null,
         title: payfitResult?.title ?? null,
       };
     });
 
+    const found = serpData.filter((r) => r.position !== null).length;
+    console.log(`  ✓ PayFit found in ${found}/${TRACKED_KEYWORDS.length} SERPs`);
     return serpData;
   } catch (err) {
     console.warn("  ✗ Apify SERP fetch failed:", err.message);
