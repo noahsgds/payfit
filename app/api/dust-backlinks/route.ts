@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { triggerDustAgent } from "../../lib/dust";
 
 export const maxDuration = 60;
 
@@ -9,22 +10,14 @@ export async function POST(req: NextRequest) {
   if (!content) return NextResponse.json({ error: "Le champ 'content' est requis" }, { status: 400 });
   if (!links)   return NextResponse.json({ error: "Le champ 'links' est requis" }, { status: 400 });
 
-  const webhookUrl = process.env.DUST_AGENT_BACKLINKS;
-  if (!webhookUrl) {
-    return NextResponse.json({ error: "DUST_AGENT_BACKLINKS non configuré" }, { status: 500 });
-  }
-
   const jobId = randomUUID();
   const message = `Intègre naturellement ces backlinks dans le contenu. Place les liens sur des ancres texte pertinentes. Retourne le contenu Markdown enrichi.\n\nLiens :\n${links}\n\nContenu :\n${content}`;
 
-  const dustRes = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ jobId, message }),
-  });
-
-  if (!dustRes.ok) {
-    return NextResponse.json({ error: `Dust webhook error: ${dustRes.status}` }, { status: 502 });
+  try {
+    await triggerDustAgent(jobId, message);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erreur inconnue";
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 
   return NextResponse.json({ jobId, status: "processing" }, { status: 202 });
