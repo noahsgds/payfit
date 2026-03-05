@@ -178,7 +178,7 @@ export async function GET(request: Request) {
 
   const openai = new OpenAI({ apiKey: openaiKey });
   const genai  = new GoogleGenerativeAI(geminiKey);
-  const geminiModel = genai.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const geminiModel = genai.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
 
   const groq = groqKey
     ? new OpenAI({ apiKey: groqKey, baseURL: "https://api.groq.com/openai/v1" })
@@ -200,7 +200,7 @@ export async function GET(request: Request) {
     groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")               : Promise.reject("no key"),
     mistral ? callOpenAICompat(mistral, "mistral-small-latest")                  : Promise.reject("no key"),
     openrouter
-      ? callOpenAICompat(openrouter, "deepseek/deepseek-r1:free", {
+      ? callOpenAICompat(openrouter, "meta-llama/llama-3.2-3b-instruct:free", {
           "HTTP-Referer": "https://payfit.com",
           "X-Title": "PayFit GEO Dashboard",
         })
@@ -227,7 +227,7 @@ export async function GET(request: Request) {
     ["Gemini",       getText(geminiRes, true)],
     ["Llama (Groq)", getText(groqRes)],
     ["Mistral",      getText(mistralRes)],
-    ["DeepSeek R1 (OR)", getText(orRes, false, true)],
+    ["Llama-3.2 (OR)", getText(orRes)],
   ];
 
   const engines = engineDefs
