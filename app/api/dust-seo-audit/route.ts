@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const message = `Effectue un audit SEO complet de ce contenu. Analyse : score SEO /100, densité des mots-clés, structure des titres, méta-description suggérée, lisibilité, points forts, points à améliorer. Retourne un rapport structuré en Markdown.\n\nContenu :\n${content}`;
 
   try {
-    await triggerDustAgent(jobId, message);
+    await triggerDustAgent(jobId, message, "DUST_AGENT_SEO_AUDIT");
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur inconnue";
     return NextResponse.json({ error: msg }, { status: 502 });

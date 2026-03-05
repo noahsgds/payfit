@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const message = `Intègre naturellement ces backlinks dans le contenu. Place les liens sur des ancres texte pertinentes. Retourne le contenu Markdown enrichi.\n\nLiens :\n${links}\n\nContenu :\n${content}`;
 
   try {
-    await triggerDustAgent(jobId, message);
+    await triggerDustAgent(jobId, message, "DUST_AGENT_BACKLINKS");
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur inconnue";
     return NextResponse.json({ error: msg }, { status: 502 });

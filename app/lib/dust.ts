@@ -3,9 +3,9 @@
  * Le webhook Dust reçoit { jobId, message } et transmet à l'agent.
  * L'agent renvoie le résultat via le MCP tool store_result(jobId, content).
  */
-export async function triggerDustAgent(jobId: string, message: string): Promise<void> {
-  const webhookUrl = process.env.DUST_WEBHOOK_URL;
-  if (!webhookUrl) throw new Error("DUST_WEBHOOK_URL non configuré");
+export async function triggerDustAgent(jobId: string, message: string, webhookEnvVar: string): Promise<void> {
+  const webhookUrl = process.env[webhookEnvVar];
+  if (!webhookUrl) throw new Error(`${webhookEnvVar} non configuré`);
 
   const res = await fetch(webhookUrl, {
     method: "POST",

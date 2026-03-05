@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     : `Génère un article SEO complet de A à Z sur la thématique : ${topic}. Choisis toi-même le keyword principal, le plan, les sous-thématiques, les titres H1/H2/H3, et la structure. Ton : ${tone}. Longueur cible : ${wordCount} mots. Retourne uniquement du Markdown.`;
 
   try {
-    await triggerDustAgent(jobId, message);
+    await triggerDustAgent(jobId, message, "DUST_AGENT_SEO_ARTICLE");
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur inconnue";
     return NextResponse.json({ error: msg }, { status: 502 });

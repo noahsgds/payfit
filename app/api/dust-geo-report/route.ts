@@ -9,7 +9,7 @@ export async function POST() {
   const message = "Génère un rapport GEO complet pour Payfit. Analyse la visibilité géographique, les marchés couverts, les opportunités d'expansion, et les performances par région. Retourne un rapport structuré en Markdown.";
 
   try {
-    await triggerDustAgent(jobId, message);
+    await triggerDustAgent(jobId, message, "DUST_AGENT_GEO_REPORT");
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur inconnue";
     return NextResponse.json({ error: msg }, { status: 502 });
