@@ -151,6 +151,10 @@ export async function GET() {
         ? trends.value
         : { labels: [], series: {} },
     serp: serp.status === "fulfilled" ? serp.value : [],
+    serpError:
+      serp.status === "rejected"
+        ? String((serp as PromiseRejectedResult).reason)
+        : null,
   };
 
   cache = { data, ts: Date.now() };
