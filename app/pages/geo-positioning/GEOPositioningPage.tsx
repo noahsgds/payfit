@@ -102,9 +102,10 @@ function HeatCell({ count, maxCount, color }: { count: number; maxCount: number;
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function GEOPositioningPage() {
-  const [data, setData]       = useState<GeoApiResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [data, setData]           = useState<GeoApiResponse | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [selectedTheme, setSelectedTheme] = useState<number | null>(null);
 
   const fetchData = useCallback(async (force = false) => {
     setLoading(true);
@@ -189,6 +190,38 @@ export default function GEOPositioningPage() {
     ? data.engines.map(e => ({ name: e.engine, payfit: e.visibility, color: ENGINE_META[e.engine]?.color ?? "#64748b" }))
     : [];
 
+  // ── Derived: theme focus ──────────────────────────────────────────────────
+  const themeNames = data?.engines[0].themes.map(t => t.label) ?? [];
+
+  type ConsoRow = { rawName: string; displayName: string; isPayfit: boolean; ranks: (number | null)[]; avgRank: number | null };
+  const consolidatedRanking: ConsoRow[] = (() => {
+    if (!data || selectedTheme === null) return [];
+    const rows = new Map<string, (number | null)[]>();
+    data.engines.forEach((engine, eIdx) => {
+      const theme = engine.themes[selectedTheme];
+      // PayFit
+      if (!rows.has("payfit")) rows.set("payfit", new Array(data.engines.length).fill(null));
+      rows.get("payfit")![eIdx] = theme.rank;
+      // Competitors
+      theme.competitorRanks.forEach(({ name, rank }) => {
+        if (!rows.has(name)) rows.set(name, new Array(data.engines.length).fill(null));
+        rows.get(name)![eIdx] = rank;
+      });
+    });
+    return Array.from(rows.entries())
+      .map(([rawName, ranks]) => {
+        const valid = ranks.filter((r): r is number => r !== null);
+        const avgRank = valid.length ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length * 10) / 10 : null;
+        return { rawName, displayName: rawName === "payfit" ? "PayFit" : cap(rawName), isPayfit: rawName === "payfit", ranks, avgRank };
+      })
+      .sort((a, b) => {
+        if (a.avgRank === null && b.avgRank === null) return 0;
+        if (a.avgRank === null) return 1;
+        if (b.avgRank === null) return -1;
+        return a.avgRank - b.avgRank;
+      });
+  })();
+
   return (
     <div className="p-6 space-y-6 fade-in">
 
@@ -249,6 +282,123 @@ export default function GEOPositioningPage() {
       {error && (
         <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
           <AlertCircle size={14} /> {error}
+        </div>
+      )}
+
+      {/* ── Sélecteur de thème ── */}
+      <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <Eye size={13} className="text-slate-400" />
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Zoom thématique</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {themeNames.map((label, i) => (
+            <button
+              key={label}
+              onClick={() => setSelectedTheme(selectedTheme === i ? null : i)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all border
+                ${selectedTheme === i
+                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                  : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600"}`}
+            >
+              {SHORT_LABELS[label] ?? label}
+            </button>
+          ))}
+          {selectedTheme !== null && (
+            <button
+              onClick={() => setSelectedTheme(null)}
+              className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-red-500 transition-colors"
+            >
+              ✕ Effacer
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Panel thème sélectionné ── */}
+      {selectedTheme !== null && data && (
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 p-5 shadow-sm space-y-5">
+          <div>
+            <h3 className="font-bold text-blue-900 text-base mb-0.5">
+              📊 {themeNames[selectedTheme]}
+            </h3>
+            <p className="text-xs text-blue-500">Classement détaillé par moteur IA pour ce thème</p>
+          </div>
+
+          {/* Réponses brutes par moteur pour ce thème */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {data.engines.map(engine => {
+              const theme    = engine.themes[selectedTheme];
+              const items    = theme.rawText ? theme.rawText.split(",").map(s => s.trim()) : [];
+              const meta     = ENGINE_META[engine.engine] ?? { logo: "🤖", color: "#64748b" };
+              return (
+                <div key={engine.engine} className="bg-white rounded-xl p-4 shadow-sm border border-blue-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span>{meta.logo}</span>
+                    <span className="text-xs font-semibold text-slate-700">{engine.engine}</span>
+                    {theme.rank
+                      ? <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">PayFit #{theme.rank}</span>
+                      : <span className="ml-auto text-xs text-slate-300 font-medium">Non cité</span>}
+                  </div>
+                  <ol className="space-y-1">
+                    {items.length > 0 ? items.map((item, idx) => {
+                      const isPayfit = item.toLowerCase().includes("payfit");
+                      return (
+                        <li key={idx} className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1
+                          ${isPayfit ? "bg-blue-600 text-white font-bold" : "text-slate-600"}`}>
+                          <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0
+                            ${isPayfit ? "bg-white/25 text-white" : "bg-slate-100 text-slate-500"}`}>
+                            {idx + 1}
+                          </span>
+                          {item}
+                        </li>
+                      );
+                    }) : <li className="text-xs text-slate-400">—</li>}
+                  </ol>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Classement consolidé */}
+          {consolidatedRanking.length > 0 && (
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-blue-100">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Classement consolidé · tous moteurs</h4>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr>
+                    <th className="text-left text-slate-400 font-medium py-1 pr-3 w-28">Solution</th>
+                    {data.engineNames.map(name => (
+                      <th key={name} className="text-center text-slate-400 font-medium py-1 px-1 min-w-[80px]">
+                        {ENGINE_META[name]?.logo ?? "🤖"} {name}
+                      </th>
+                    ))}
+                    <th className="text-center text-slate-400 font-medium py-1 px-1 w-16">Moy.</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {consolidatedRanking.map(row => (
+                    <tr key={row.rawName} className={row.isPayfit ? "bg-blue-50 rounded-lg" : ""}>
+                      <td className="py-1 pr-3 font-semibold whitespace-nowrap" style={{ color: brandColor(row.rawName) }}>
+                        {row.isPayfit && "★ "}{row.displayName}
+                      </td>
+                      {row.ranks.map((rank, i) => (
+                        <td key={i} className="py-1 px-1"><RankCell rank={rank} /></td>
+                      ))}
+                      <td className="py-1 px-1">
+                        <div className={`w-full h-8 rounded-lg flex items-center justify-center text-xs font-bold
+                          ${row.avgRank && row.avgRank <= 2 ? "bg-emerald-100 text-emerald-700" :
+                            row.avgRank && row.avgRank <= 3 ? "bg-blue-100 text-blue-700" :
+                            "bg-slate-50 text-slate-500"}`}>
+                          {row.avgRank ? `#${row.avgRank}` : "—"}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
