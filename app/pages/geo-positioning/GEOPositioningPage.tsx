@@ -175,7 +175,7 @@ export default function GEOPositioningPage() {
           change={24}
           changeLabel="ce mois"
           icon={<Eye size={16} />}
-          color="#00B379"
+          color="#1B6EF3"
         />
         <MetricCard
           title="Position moy. IA"
@@ -199,13 +199,13 @@ export default function GEOPositioningPage() {
             <RadarChart data={radarData}>
               <PolarGrid stroke="#f1f5f9" />
               <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: "#64748b" }} />
-              <Radar name="PayFit" dataKey="payfit" stroke="#00B379" fill="#00B379" fillOpacity={0.2} strokeWidth={2} />
+              <Radar name="PayFit" dataKey="payfit" stroke="#1B6EF3" fill="#1B6EF3" fillOpacity={0.2} strokeWidth={2} />
               <Radar name="Moyenne" dataKey="average" stroke="#CBD5E1" fill="#CBD5E1" fillOpacity={0.1} strokeWidth={1} strokeDasharray="3 3" />
             </RadarChart>
           </ResponsiveContainer>
           <div className="flex gap-4 justify-center mt-2">
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-1.5 rounded bg-[#00B379]" />
+              <div className="w-3 h-1.5 rounded bg-[#1B6EF3]" />
               <span className="text-xs text-slate-500">PayFit</span>
             </div>
             <div className="flex items-center gap-1.5">

@@ -137,7 +137,7 @@ export default function SEOPositioningPage() {
           change={12}
           changeLabel="vs mois dernier"
           icon={<Search size={16} />}
-          color="#00B379"
+          color="#1B6EF3"
         />
         <MetricCard
           title="Mots-clés Top 10"
@@ -185,7 +185,7 @@ export default function SEOPositioningPage() {
           </div>
           <div className="flex gap-4 mb-4">
             {[
-              { label: "Top 3", color: "#00B379" },
+              { label: "Top 3", color: "#1B6EF3" },
               { label: "Top 10", color: "#3B82F6" },
               { label: "Top 30", color: "#E2E8F0" },
             ].map((item) => (
@@ -222,9 +222,9 @@ export default function SEOPositioningPage() {
               <Line
                 type="monotone"
                 dataKey="top3"
-                stroke="#00B379"
+                stroke="#1B6EF3"
                 strokeWidth={2.5}
-                dot={{ fill: "#00B379", r: 4 }}
+                dot={{ fill: "#1B6EF3", r: 4 }}
                 name="Top 3"
               />
               <Line
@@ -280,7 +280,7 @@ export default function SEOPositioningPage() {
                 }}
                 formatter={(v: number | undefined) => [`${(v ?? 0).toLocaleString()} req/mois`]}
               />
-              <Bar dataKey="volume" fill="#00B379" radius={[0, 6, 6, 0]} />
+              <Bar dataKey="volume" fill="#1B6EF3" radius={[0, 6, 6, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -314,7 +314,7 @@ export default function SEOPositioningPage() {
                 onClick={() => setFilter(f)}
                 className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors ${
                   filter === f
-                    ? "bg-[#00B379] text-white"
+                    ? "bg-[#1B6EF3] text-white"
                     : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
                 }`}
               >
@@ -411,7 +411,7 @@ export default function SEOPositioningPage() {
                                 ? "#EF4444"
                                 : kw.difficulty >= 50
                                 ? "#F59E0B"
-                                : "#00B379",
+                                : "#1B6EF3",
                           }}
                         />
                       </div>

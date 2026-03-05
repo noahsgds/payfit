@@ -27,7 +27,7 @@ import MetricCard from "../../components/MetricCard";
 const competitors = [
   {
     name: "PayFit",
-    color: "#00B379",
+    color: "#1B6EF3",
     traffic: 61300,
     keywords: 8420,
     top10: 2280,
@@ -144,7 +144,7 @@ export default function CompetitiveAnalysisPage() {
           change={0}
           changeLabel="stable"
           icon={<BarChart2 size={16} />}
-          color="#00B379"
+          color="#1B6EF3"
         />
         <MetricCard
           title="Avance sur Sage HR"
@@ -211,7 +211,7 @@ export default function CompetitiveAnalysisPage() {
                 dataKey="trafic"
                 radius={[6, 6, 0, 0]}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                fill="#00B379"
+                fill="#1B6EF3"
                 // Use individual fills via Cell if needed
               />
             </BarChart>
@@ -256,8 +256,8 @@ export default function CompetitiveAnalysisPage() {
               <Radar
                 name="PayFit"
                 dataKey="PayFit"
-                stroke="#00B379"
-                fill="#00B379"
+                stroke="#1B6EF3"
+                fill="#1B6EF3"
                 fillOpacity={0.25}
                 strokeWidth={2}
               />
@@ -330,7 +330,7 @@ export default function CompetitiveAnalysisPage() {
                     }
                     className={`border-t border-slate-50 cursor-pointer transition-colors ${
                       comp.isUs
-                        ? "bg-[#00B379]/5 hover:bg-[#00B379]/8"
+                        ? "bg-[#1B6EF3]/5 hover:bg-[#1B6EF3]/8"
                         : "hover:bg-slate-50"
                     }`}
                   >
@@ -342,12 +342,12 @@ export default function CompetitiveAnalysisPage() {
                         />
                         <span
                           className={`text-sm font-semibold ${
-                            comp.isUs ? "text-[#00B379]" : "text-slate-800"
+                            comp.isUs ? "text-[#1B6EF3]" : "text-slate-800"
                           }`}
                         >
                           {comp.name}
                           {comp.isUs && (
-                            <span className="ml-1.5 text-xs bg-[#00B379]/15 text-[#00B379] px-1.5 py-0.5 rounded-full">
+                            <span className="ml-1.5 text-xs bg-[#1B6EF3]/15 text-[#1B6EF3] px-1.5 py-0.5 rounded-full">
                               Nous
                             </span>
                           )}

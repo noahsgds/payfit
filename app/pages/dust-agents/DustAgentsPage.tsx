@@ -43,7 +43,7 @@ const agents: Agent[] = [
       "Recommandations contenu",
       "Suivi positions",
     ],
-    color: "#00B379",
+    color: "#1B6EF3",
   },
   {
     id: "geo-monitor",
@@ -172,7 +172,7 @@ function AgentChat({ agent }: { agent: Agent }) {
         className="w-full flex items-center justify-between text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
       >
         <span className="flex items-center gap-1.5">
-          <Zap size={12} className="text-[#00B379]" />
+          <Zap size={12} className="text-[#1B6EF3]" />
           Chat avec l&apos;agent
         </span>
         {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -189,7 +189,7 @@ function AgentChat({ agent }: { agent: Agent }) {
                 <div
                   className={`max-w-xs px-3 py-2 rounded-xl text-xs ${
                     msg.role === "user"
-                      ? "bg-[#00B379] text-white"
+                      ? "bg-[#1B6EF3] text-white"
                       : "bg-white text-slate-700 border border-slate-200"
                   }`}
                 >
@@ -216,11 +216,11 @@ function AgentChat({ agent }: { agent: Agent }) {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
               placeholder={`Demandez à ${agent.name}...`}
-              className="flex-1 text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-[#00B379] transition-colors"
+              className="flex-1 text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-[#1B6EF3] transition-colors"
             />
             <button
               onClick={sendMessage}
-              className="p-2 bg-[#00B379] text-white rounded-xl hover:bg-[#009966] transition-colors"
+              className="p-2 bg-[#1B6EF3] text-white rounded-xl hover:bg-[#1549C7] transition-colors"
             >
               <Send size={12} />
             </button>
@@ -244,7 +244,7 @@ export default function DustAgentsPage() {
       {/* Header card */}
       <div className="bg-gradient-to-r from-[#0F1629] to-[#1a2744] rounded-2xl p-6 text-white">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-[#00B379] flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-[#1B6EF3] flex items-center justify-center">
             <Bot size={20} />
           </div>
           <div>
@@ -346,7 +346,7 @@ export default function DustAgentsPage() {
               <h3 className="font-semibold text-slate-900 text-sm">
                 {agent.name}
               </h3>
-              <p className="text-xs text-[#00B379] font-mono mt-0.5 mb-2">
+              <p className="text-xs text-[#1B6EF3] font-mono mt-0.5 mb-2">
                 {agent.agentId}
               </p>
               <p className="text-xs text-slate-500 leading-relaxed">
@@ -385,7 +385,7 @@ export default function DustAgentsPage() {
               <div className="flex gap-2 mt-3">
                 <button
                   onClick={() => handleConnect(agent.id)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium bg-[#00B379] text-white hover:bg-[#009966] transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium bg-[#1B6EF3] text-white hover:bg-[#1549C7] transition-colors"
                 >
                   {connecting === agent.id ? (
                     <>
@@ -412,11 +412,11 @@ export default function DustAgentsPage() {
       </div>
 
       {/* Add agent CTA */}
-      <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-[#00B379] transition-colors cursor-pointer group">
-        <div className="w-12 h-12 rounded-xl bg-slate-100 group-hover:bg-[#00B379]/10 flex items-center justify-center mx-auto mb-3 transition-colors">
+      <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-[#1B6EF3] transition-colors cursor-pointer group">
+        <div className="w-12 h-12 rounded-xl bg-slate-100 group-hover:bg-[#1B6EF3]/10 flex items-center justify-center mx-auto mb-3 transition-colors">
           <Bot
             size={20}
-            className="text-slate-400 group-hover:text-[#00B379] transition-colors"
+            className="text-slate-400 group-hover:text-[#1B6EF3] transition-colors"
           />
         </div>
         <h3 className="font-semibold text-slate-700 text-sm">
@@ -426,7 +426,7 @@ export default function DustAgentsPage() {
           Connectez un agent Dust supplémentaire pour enrichir votre plateforme
           SEO Intelligence
         </p>
-        <button className="mt-3 text-xs font-medium text-[#00B379] hover:underline">
+        <button className="mt-3 text-xs font-medium text-[#1B6EF3] hover:underline">
           + Configurer un agent
         </button>
       </div>

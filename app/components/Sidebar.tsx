@@ -80,7 +80,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       <div className="flex items-center gap-3 px-4 py-5 border-b border-white/10">
         <div
           className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm"
-          style={{ backgroundColor: "#00B379" }}
+          style={{ backgroundColor: "#1B6EF3" }}
         >
           P
         </div>
@@ -94,14 +94,14 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
       {/* AI indicator */}
       {!collapsed && (
-        <div className="mx-3 mt-3 mb-1 px-3 py-2 rounded-xl bg-gradient-to-r from-[#00B379]/20 to-blue-500/10 border border-[#00B379]/20 fade-in">
+        <div className="mx-3 mt-3 mb-1 px-3 py-2 rounded-xl bg-gradient-to-r from-[#1B6EF3]/20 to-blue-500/10 border border-[#1B6EF3]/20 fade-in">
           <div className="flex items-center gap-2">
-            <Sparkles size={12} className="text-[#00B379]" />
-            <span className="text-xs text-[#00B379] font-medium">
+            <Sparkles size={12} className="text-[#1B6EF3]" />
+            <span className="text-xs text-[#1B6EF3] font-medium">
               Powered by Dust AI
             </span>
             <span
-              className="ml-auto w-2 h-2 rounded-full bg-[#00B379] animate-pulse-dot"
+              className="ml-auto w-2 h-2 rounded-full bg-[#1B6EF3] animate-pulse-dot"
               style={{ display: "inline-block" }}
             />
           </div>
@@ -122,7 +122,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 onClick={() => onNavigate(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative ${
                   currentPage === item.id
-                    ? "bg-[#00B379] text-white shadow-lg shadow-[#00B379]/20"
+                    ? "bg-[#1B6EF3] text-white shadow-lg shadow-[#1B6EF3]/20"
                     : "text-slate-400 hover:bg-white/8 hover:text-white"
                 } ${collapsed ? "justify-center" : ""}`}
               >
@@ -181,7 +181,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
             collapsed ? "justify-center" : ""
           }`}
         >
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#00B379] to-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1B6EF3] to-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             S
           </div>
           {!collapsed && (

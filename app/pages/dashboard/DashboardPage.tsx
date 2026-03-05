@@ -46,7 +46,7 @@ const quickStats = [
     label: "Mots-clés top 3",
     value: "847",
     icon: <Search size={16} />,
-    color: "#00B379",
+    color: "#1B6EF3",
     sub: "+12% ce mois",
   },
   {
@@ -83,14 +83,14 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       >
         <div className="absolute right-0 top-0 w-64 h-full opacity-10">
           <svg viewBox="0 0 200 200" className="w-full h-full">
-            <circle cx="150" cy="50" r="80" fill="#00B379" />
+            <circle cx="150" cy="50" r="80" fill="#1B6EF3" />
             <circle cx="50" cy="150" r="60" fill="#3B82F6" />
           </svg>
         </div>
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-2">
-            <span className="w-2 h-2 bg-[#00B379] rounded-full animate-pulse-dot inline-block" />
-            <span className="text-xs text-[#00B379] font-semibold uppercase tracking-wider">
+            <span className="w-2 h-2 bg-[#1B6EF3] rounded-full animate-pulse-dot inline-block" />
+            <span className="text-xs text-[#1B6EF3] font-semibold uppercase tracking-wider">
               Plateforme SEO Intelligence
             </span>
           </div>
@@ -104,7 +104,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           <div className="flex gap-3 mt-4">
             <button
               onClick={() => onNavigate("dust-agents")}
-              className="flex items-center gap-2 bg-[#00B379] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#009966] transition-colors"
+              className="flex items-center gap-2 bg-[#1B6EF3] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#1549C7] transition-colors"
             >
               <Bot size={14} />
               Lancer un agent IA
@@ -169,8 +169,8 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             <AreaChart data={trafficData}>
               <defs>
                 <linearGradient id="colorTrafic" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#00B379" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#00B379" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#1B6EF3" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#1B6EF3" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -200,7 +200,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
               <Area
                 type="monotone"
                 dataKey="trafic"
-                stroke="#00B379"
+                stroke="#1B6EF3"
                 strokeWidth={2}
                 fill="url(#colorTrafic)"
                 name="Trafic"
@@ -228,7 +228,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
               {
                 label: "SEO Organique",
                 score: 82,
-                color: "#00B379",
+                color: "#1B6EF3",
                 page: "seo-positioning" as PageId,
               },
               {

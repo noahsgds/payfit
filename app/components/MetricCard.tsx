@@ -18,7 +18,7 @@ export default function MetricCard({
   change,
   changeLabel,
   icon,
-  color = "#00B379",
+  color = "#1B6EF3",
   suffix,
 }: MetricCardProps) {
   const isPositive = change !== undefined && change > 0;

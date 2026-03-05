@@ -43,7 +43,7 @@ const mentionData = [
 ];
 
 const sentimentData = [
-  { name: "Positif", value: 58, color: "#00B379" },
+  { name: "Positif", value: 58, color: "#1B6EF3" },
   { name: "Neutre", value: 28, color: "#94A3B8" },
   { name: "Négatif", value: 14, color: "#EF4444" },
 ];
@@ -170,7 +170,7 @@ export default function SocialListeningPage() {
           change={22}
           changeLabel="cette semaine"
           icon={<MessageSquare size={16} />}
-          color="#00B379"
+          color="#1B6EF3"
         />
         <MetricCard
           title="Sentiment positif"
@@ -379,7 +379,7 @@ export default function SocialListeningPage() {
               onClick={() => setActivePlatform(p.id)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 activePlatform === p.id
-                  ? "bg-[#00B379] text-white"
+                  ? "bg-[#1B6EF3] text-white"
                   : "text-slate-600 hover:bg-slate-50"
               }`}
             >
@@ -400,7 +400,7 @@ export default function SocialListeningPage() {
               onClick={() => setActiveSentiment(s.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 activeSentiment === s.id
-                  ? "bg-[#00B379] text-white"
+                  ? "bg-[#1B6EF3] text-white"
                   : "text-slate-600 hover:bg-slate-50"
               }`}
             >
