@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Globe, Brain, Eye, TrendingUp, RefreshCw, AlertCircle,
+  Globe, Brain, Eye, TrendingUp, RefreshCw, AlertCircle, Search,
   CheckCircle2, Clock,
 } from "lucide-react";
 import {
@@ -10,6 +10,7 @@ import {
   ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import type { GeoApiResponse } from "../../api/geo-data/route";
+import type { ThemeQueryResult } from "../../api/geo-theme/route";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,33 @@ export default function GEOPositioningPage() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<number | null>(null);
+
+  // Custom theme query
+  const [customQuery,   setCustomQuery]   = useState("");
+  const [customLoading, setCustomLoading] = useState(false);
+  const [customResult,  setCustomResult]  = useState<ThemeQueryResult | null>(null);
+  const [customError,   setCustomError]   = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const runCustomQuery = useCallback(async (q: string) => {
+    const query = q.trim();
+    if (!query) return;
+    setCustomLoading(true);
+    setCustomError(null);
+    setCustomResult(null);
+    try {
+      const res = await fetch(`/api/geo-theme?q=${encodeURIComponent(query)}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      setCustomResult(await res.json());
+    } catch (e) {
+      setCustomError(e instanceof Error ? e.message : "Erreur inconnue");
+    } finally {
+      setCustomLoading(false);
+    }
+  }, []);
 
   const fetchData = useCallback(async (force = false) => {
     setLoading(true);
@@ -313,6 +341,50 @@ export default function GEOPositioningPage() {
             </button>
           )}
         </div>
+
+        {/* Saisie libre */}
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <p className="text-xs text-slate-400 mb-2">Ou analyser un thème personnalisé :</p>
+          <form
+            onSubmit={(e) => { e.preventDefault(); runCustomQuery(customQuery); }}
+            className="flex gap-2"
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              value={customQuery}
+              onChange={e => setCustomQuery(e.target.value)}
+              placeholder="ex: gestion des talents, ATS PME…"
+              className="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 placeholder-slate-400
+                focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all"
+            />
+            <button
+              type="submit"
+              disabled={customLoading || !customQuery.trim()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 text-white
+                hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {customLoading
+                ? <RefreshCw size={12} className="animate-spin" />
+                : <Search size={12} />}
+              {customLoading ? "Analyse…" : "Analyser"}
+            </button>
+            {customResult && (
+              <button
+                type="button"
+                onClick={() => { setCustomResult(null); setCustomQuery(""); setCustomError(null); }}
+                className="px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-red-500 transition-colors"
+              >
+                ✕
+              </button>
+            )}
+          </form>
+          {customError && (
+            <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+              <AlertCircle size={11} /> {customError}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* ── Panel thème sélectionné ── */}
@@ -399,6 +471,119 @@ export default function GEOPositioningPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Panel thème custom ── */}
+      {customResult && (
+        <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-violet-100 p-5 shadow-sm space-y-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-bold text-violet-900 text-base mb-0.5">
+                🔍 {customResult.theme}
+              </h3>
+              <p className="text-xs text-violet-500">
+                Résultats en temps réel · {new Date(customResult.timestamp).toLocaleTimeString("fr-FR")}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {customResult.engines.map(engine => {
+              const meta = ENGINE_META[engine.name] ?? { logo: "🤖", color: "#64748b" };
+              return (
+                <div key={engine.name} className="bg-white rounded-xl p-4 shadow-sm border border-violet-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span>{meta.logo}</span>
+                    <span className="text-xs font-semibold text-slate-700">{engine.name}</span>
+                    {engine.payfitRank
+                      ? <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">PayFit #{engine.payfitRank}</span>
+                      : <span className="ml-auto text-xs text-slate-300 font-medium">Non cité</span>}
+                  </div>
+                  <ol className="space-y-1">
+                    {engine.items.length > 0 ? engine.items.map((item, idx) => {
+                      const isPayfit = item.toLowerCase().includes("payfit");
+                      return (
+                        <li key={idx} className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1
+                          ${isPayfit ? "bg-violet-600 text-white font-bold" : "text-slate-600"}`}>
+                          <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0
+                            ${isPayfit ? "bg-white/25" : "bg-slate-100 text-slate-500"}`}>
+                            {idx + 1}
+                          </span>
+                          {item}
+                        </li>
+                      );
+                    }) : <li className="text-xs text-slate-400">Aucun résultat</li>}
+                  </ol>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Mini classement consolidé */}
+          {(() => {
+            const rankMap = new Map<string, { displayName: string; isPayfit: boolean; ranks: (number|null)[] }>();
+            customResult.engines.forEach((engine, eIdx) => {
+              const set = (rawName: string, rank: number | null) => {
+                if (!rankMap.has(rawName)) {
+                  rankMap.set(rawName, {
+                    displayName: rawName === "payfit" ? "PayFit" : cap(rawName),
+                    isPayfit: rawName === "payfit",
+                    ranks: new Array(customResult.engines.length).fill(null),
+                  });
+                }
+                rankMap.get(rawName)!.ranks[eIdx] = rank;
+              };
+              set("payfit", engine.payfitRank);
+              engine.competitors.forEach(c => set(c.name, c.rank));
+            });
+            const rows = Array.from(rankMap.entries())
+              .map(([rawName, v]) => {
+                const valid = v.ranks.filter((r): r is number => r !== null);
+                const avg = valid.length ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length * 10) / 10 : null;
+                return { rawName, ...v, avgRank: avg };
+              })
+              .sort((a, b) => (a.avgRank ?? 99) - (b.avgRank ?? 99));
+            if (rows.length === 0) return null;
+            return (
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-violet-100">
+                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Classement consolidé</h4>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr>
+                      <th className="text-left text-slate-400 font-medium py-1 pr-3 w-28">Solution</th>
+                      {customResult.engines.map(e => (
+                        <th key={e.name} className="text-center text-slate-400 font-medium py-1 px-1 min-w-[80px]">
+                          {ENGINE_META[e.name]?.logo ?? "🤖"} {e.name}
+                        </th>
+                      ))}
+                      <th className="text-center text-slate-400 font-medium py-1 px-1 w-14">Moy.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {rows.map(row => (
+                      <tr key={row.rawName} className={row.isPayfit ? "bg-violet-50" : ""}>
+                        <td className="py-1 pr-3 font-semibold whitespace-nowrap" style={{ color: brandColor(row.rawName) }}>
+                          {row.isPayfit && "★ "}{row.displayName}
+                        </td>
+                        {row.ranks.map((rank, i) => (
+                          <td key={i} className="py-1 px-1"><RankCell rank={rank} /></td>
+                        ))}
+                        <td className="py-1 px-1">
+                          <div className={`w-full h-8 rounded-lg flex items-center justify-center text-xs font-bold
+                            ${row.avgRank && row.avgRank <= 2 ? "bg-emerald-100 text-emerald-700" :
+                              row.avgRank && row.avgRank <= 3 ? "bg-blue-100 text-blue-700" :
+                              "bg-slate-50 text-slate-500"}`}>
+                            {row.avgRank ? `#${row.avgRank}` : "—"}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       )}
 
