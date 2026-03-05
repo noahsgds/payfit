@@ -31,14 +31,14 @@ interface Props {
 
 // ─── Poll helper ──────────────────────────────────────────────────────────────
 
-async function pollResult(jobId: string, maxAttempts = 60): Promise<string> {
+async function pollResult(jobId: string, maxAttempts = 150): Promise<string> {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(r => setTimeout(r, 2000));
     const res  = await fetch(`/api/dust-result?jobId=${jobId}`);
     const data = await res.json() as { status: string; result?: string };
     if (data.status === "done" && data.result) return data.result;
   }
-  throw new Error("Timeout : l'agent a mis trop longtemps à répondre (>2 min).");
+  throw new Error("Timeout : l'agent a mis trop longtemps à répondre (>5 min).");
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
