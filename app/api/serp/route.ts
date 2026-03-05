@@ -45,45 +45,33 @@ async function fetchPage(apiKey: string, keyword: string, page: number): Promise
   return (data.organic ?? []).map((r) => ({ ...r, position: r.position + offset }));
 }
 
-// ─── Domaines à exclure (gouvernement + sites génériques non-concurrents) ──────
+// ─── Concurrents connus actifs sur le marché français ─────────────────────────
 
-const EXCLUDED_DOMAINS = new Set([
-  // Gouvernement français
-  "service-public.fr",
-  "ameli.fr",
-  "urssaf.fr",
-  "urssaf.net",
-  "legifrance.gouv.fr",
-  "travail-emploi.gouv.fr",
-  "economie.gouv.fr",
-  "impots.gouv.fr",
-  "securite-sociale.fr",
-  "net-entreprises.fr",
-  "complementaire-sante-solidaire.fr",
-  "senat.fr",
-  "assemblee-nationale.fr",
-  "vie-publique.fr",
-  "elysee.fr",
-  "gouvernement.fr",
-  "info-retraite.fr",
-  "agirc-arrco.fr",
-  "unedic.org",
-  "pole-emploi.fr",
-  "francetravail.fr",
-  "cpam.fr",
-  "msa.fr",
-  // Encyclopédies / généralistes
-  "wikipedia.org",
-  "wikimedia.org",
-  "fr.wikipedia.org",
+const KNOWN_COMPETITORS = new Set([
+  "silae.fr",
+  "sage.com",
+  "cegid.com",
+  "adp.fr",
+  "adp.com",
+  "nibelis.fr",
+  "eurecia.com",
+  "lucca.fr",
+  "factorial.fr",
+  "factorialhr.fr",
+  "factorialhr.com",
+  "workday.com",
+  "bamboohr.com",
+  "kelio.com",
+  "peopledoc.com",
+  "combo.fr",
+  "zucchetti.fr",
+  "legalplace.fr",
+  "compta-facile.com",
+  "myrhline.com",
 ]);
 
-// Suffixes gouvernementaux (capturent tous les sous-domaines *.gouv.fr etc.)
-const EXCLUDED_SUFFIXES = [".gouv.fr", ".gouv.nc", ".gouv.mc"];
-
-function isExcluded(domain: string): boolean {
-  if (EXCLUDED_DOMAINS.has(domain)) return true;
-  return EXCLUDED_SUFFIXES.some((s) => domain.endsWith(s));
+function isKnownCompetitor(domain: string): boolean {
+  return KNOWN_COMPETITORS.has(domain);
 }
 
 function extractDomain(url: string): string {
@@ -118,7 +106,7 @@ export async function POST() {
             ? [...new Set(
                 all.slice(0, payfitIdx)
                   .map((r) => extractDomain(r.link))
-                  .filter((d) => !isExcluded(d))
+                  .filter(isKnownCompetitor)
               )]
             : [];
 
