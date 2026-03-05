@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -23,22 +23,15 @@ interface SerpResult {
 
 interface SeoData {
   timestamp: string | null;
-  trends: {
-    labels: string[];
-    series: Record<string, number[]>;
-  };
+  trends: { labels: string[]; series: Record<string, number[]> };
   serp: SerpResult[];
-  serpRunStatus: string | null;
   serpRunFinishedAt: string | null;
   serpError: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildTrendChartData(
-  labels: string[],
-  series: Record<string, number[]>
-) {
+function buildTrendChartData(labels: string[], series: Record<string, number[]>) {
   return labels.map((label, i) => ({
     date: label,
     PayFit: series["PayFit"]?.[i] ?? 0,
@@ -57,11 +50,9 @@ function PositionBadge({ position }: { position: number | null }) {
   if (position === null)
     return <span className="text-xs text-slate-400 font-medium">—</span>;
   const color =
-    position <= 3
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : position <= 10
-      ? "bg-blue-50 text-blue-700 border-blue-200"
-      : "bg-slate-100 text-slate-600 border-slate-200";
+    position <= 3 ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : position <= 10 ? "bg-blue-50 text-blue-700 border-blue-200"
+    : "bg-slate-100 text-slate-600 border-slate-200";
   return (
     <span className={`inline-flex items-center justify-center w-8 h-8 rounded-xl text-xs font-bold border ${color}`}>
       {position}
@@ -74,8 +65,9 @@ function PositionBadge({ position }: { position: number | null }) {
 export default function SEOPositioningPage() {
   const [seoData, setSeoData] = useState<SeoData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false); // run Apify en cours
+  const [pollSeconds, setPollSeconds] = useState(0);
+  const pollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     fetch("/api/seo-data")
@@ -83,38 +75,85 @@ export default function SEOPositioningPage() {
       .then((d: SeoData) => setSeoData(d))
       .catch(() => setSeoData(null))
       .finally(() => setLoading(false));
+
+    return () => stopPolling();
   }, []);
 
-  async function triggerRefresh() {
-    setRefreshing(true);
-    setRefreshMsg(null);
-    try {
-      const res = await fetch("/api/serp-refresh", { method: "POST" });
-      const json = await res.json() as { message?: string; error?: string };
-      setRefreshMsg(json.message ?? json.error ?? "Run lancé.");
-    } catch {
-      setRefreshMsg("Erreur lors du déclenchement.");
-    } finally {
-      setRefreshing(false);
+  function stopPolling() {
+    if (pollInterval.current) {
+      clearInterval(pollInterval.current);
+      pollInterval.current = null;
     }
   }
 
-  const trendChartData =
-    seoData?.trends?.labels?.length
-      ? buildTrendChartData(seoData.trends.labels, seoData.trends.series)
-      : [];
+  function startPolling(runId: string) {
+    setPolling(true);
+    setPollSeconds(0);
+    let elapsed = 0;
+
+    pollInterval.current = setInterval(async () => {
+      elapsed += 5;
+      setPollSeconds(elapsed);
+
+      try {
+        const res = await fetch(`/api/serp-status?runId=${runId}`);
+        const json = await res.json() as {
+          status: string;
+          serp?: SerpResult[];
+          finishedAt?: string;
+        };
+
+        if (json.status === "SUCCEEDED" && json.serp) {
+          stopPolling();
+          setPolling(false);
+          setSeoData((prev) =>
+            prev
+              ? { ...prev, serp: json.serp!, serpRunFinishedAt: json.finishedAt ?? null }
+              : prev
+          );
+        } else if (json.status === "FAILED" || json.status === "ABORTED") {
+          stopPolling();
+          setPolling(false);
+        }
+      } catch {
+        // réseau instable, on réessaie au prochain tick
+      }
+    }, 5000);
+  }
+
+  async function triggerRefresh() {
+    stopPolling();
+    setPolling(true);
+    setPollSeconds(0);
+
+    try {
+      const res = await fetch("/api/serp-refresh", { method: "POST" });
+      const json = await res.json() as { runId?: string; error?: string };
+      if (json.runId) {
+        startPolling(json.runId);
+      } else {
+        setPolling(false);
+      }
+    } catch {
+      setPolling(false);
+    }
+  }
+
+  const trendChartData = seoData?.trends?.labels?.length
+    ? buildTrendChartData(seoData.trends.labels, seoData.trends.series)
+    : [];
 
   const serp = seoData?.serp ?? [];
 
-  const lastUpdated = seoData?.timestamp
-    ? new Date(seoData.timestamp).toLocaleString("fr-FR", {
+  const serpDate = seoData?.serpRunFinishedAt
+    ? new Date(seoData.serpRunFinishedAt).toLocaleString("fr-FR", {
         day: "2-digit", month: "2-digit", year: "numeric",
         hour: "2-digit", minute: "2-digit",
       })
     : null;
 
-  const serpDate = seoData?.serpRunFinishedAt
-    ? new Date(seoData.serpRunFinishedAt).toLocaleString("fr-FR", {
+  const lastUpdated = seoData?.timestamp
+    ? new Date(seoData.timestamp).toLocaleString("fr-FR", {
         day: "2-digit", month: "2-digit", year: "numeric",
         hour: "2-digit", minute: "2-digit",
       })
@@ -135,17 +174,13 @@ export default function SEOPositioningPage() {
       <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-1">
           <div>
-            <h3 className="font-semibold text-slate-900 text-sm">
-              Google Trends — intérêt de recherche
-            </h3>
+            <h3 className="font-semibold text-slate-900 text-sm">Google Trends — intérêt de recherche</h3>
             <p className="text-xs text-slate-400">
               Données réelles Google Trends FR · 90 derniers jours
               {lastUpdated && <span className="ml-2 text-slate-300">· {lastUpdated}</span>}
             </p>
           </div>
-          <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg font-medium">
-            Live
-          </span>
+          <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg font-medium">Live</span>
         </div>
 
         <div className="flex gap-4 mt-3 mb-4">
@@ -170,41 +205,48 @@ export default function SEOPositioningPage() {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-64 flex items-center justify-center text-sm text-slate-400">
-            Aucune donnée disponible
-          </div>
+          <div className="h-64 flex items-center justify-center text-sm text-slate-400">Aucune donnée disponible</div>
         )}
       </div>
 
-      {/* SERP positions */}
+      {/* SERP */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
           <div>
-            <h3 className="font-semibold text-slate-900 text-sm">
-              Positions Google — PayFit.com
-            </h3>
+            <h3 className="font-semibold text-slate-900 text-sm">Positions Google — PayFit.com</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              {serp.length > 0
-                ? <>Données SERP réelles · France{serpDate && <span className="ml-1">· dernier run {serpDate}</span>}</>
+              {polling
+                ? <span className="text-blue-500">Scrape en cours… {pollSeconds}s</span>
+                : serp.length > 0
+                ? <>Données SERP réelles · France{serpDate && <> · dernier run {serpDate}</>}</>
                 : seoData?.serpError
                 ? <span className="text-red-500">{seoData.serpError}</span>
-                : "Aucun run Apify disponible — lancez un rafraîchissement"}
+                : "Aucun run disponible — cliquez sur Rafraîchir"}
             </p>
-            {refreshMsg && (
-              <p className="text-xs text-blue-600 mt-1">{refreshMsg}</p>
-            )}
           </div>
           <button
             onClick={triggerRefresh}
-            disabled={refreshing}
+            disabled={polling}
             className="flex items-center gap-1.5 text-xs bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50 shrink-0"
           >
-            <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
-            {refreshing ? "Lancement…" : "Rafraîchir"}
+            <RefreshCw size={12} className={polling ? "animate-spin" : ""} />
+            {polling ? `${pollSeconds}s…` : "Rafraîchir"}
           </button>
         </div>
 
-        {serp.length > 0 ? (
+        {polling && serp.length === 0 ? (
+          // Skeleton pendant le chargement initial
+          <div className="p-6 space-y-3">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 animate-pulse">
+                <div className="h-4 bg-slate-100 rounded w-48" />
+                <div className="h-8 w-8 bg-slate-100 rounded-xl" />
+                <div className="h-4 bg-slate-100 rounded w-8" />
+                <div className="h-4 bg-slate-100 rounded w-32" />
+              </div>
+            ))}
+          </div>
+        ) : serp.length > 0 ? (
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50">
@@ -238,7 +280,7 @@ export default function SEOPositioningPage() {
           </table>
         ) : (
           <div className="p-8 text-center text-sm text-slate-400">
-            Cliquez sur &quot;Rafraîchir&quot; pour lancer un scrape Apify (~2 min), puis rechargez la page.
+            Cliquez sur &quot;Rafraîchir&quot; pour lancer un scrape Apify (~2 min).
           </div>
         )}
       </div>
