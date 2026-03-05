@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@vercel/kv": "^3.0.0",
     "apify-client": "^2.22.2",
     "google-trends-api": "^4.9.2",
     "lucide-react": "^0.577.0",

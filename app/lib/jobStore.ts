@@ -1,16 +1,32 @@
-import { kv } from "@vercel/kv";
+const SUPABASE_URL = process.env.SUPABASE_URL!;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
 
-const KEY_PREFIX = "dust_job:";
-const TTL_SECONDS = 3600; // 1 heure
+const headers = () => ({
+  "Content-Type": "application/json",
+  apikey: SUPABASE_SERVICE_KEY,
+  Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+});
 
 export async function setJobResult(jobId: string, result: string): Promise<void> {
-  await kv.set(`${KEY_PREFIX}${jobId}`, result, { ex: TTL_SECONDS });
+  await fetch(`${SUPABASE_URL}/rest/v1/dust_jobs`, {
+    method: "POST",
+    headers: { ...headers(), Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({ job_id: jobId, result }),
+  });
 }
 
 export async function getJobResult(jobId: string): Promise<string | null> {
-  return kv.get<string>(`${KEY_PREFIX}${jobId}`);
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/dust_jobs?job_id=eq.${encodeURIComponent(jobId)}&select=result`,
+    { headers: headers() }
+  );
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0].result : null;
 }
 
 export async function deleteJob(jobId: string): Promise<void> {
-  await kv.del(`${KEY_PREFIX}${jobId}`);
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/dust_jobs?job_id=eq.${encodeURIComponent(jobId)}`,
+    { method: "DELETE", headers: headers() }
+  );
 }
