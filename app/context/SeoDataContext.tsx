@@ -10,18 +10,9 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface SerpResult {
-  keyword: string;
-  position: number | null;
-  url: string | null;
-  title: string | null;
-}
-
 export interface SeoData {
   timestamp: string | null;
   trends: { labels: string[]; series: Record<string, number[]> };
-  serp: SerpResult[];
-  serpError: string | null;
 }
 
 interface SeoDataContextValue {

@@ -10,18 +10,6 @@ const googleTrends = require("google-trends-api") as {
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 heure
 
-export const TRACKED_KEYWORDS = [
-  "fiche de paie",
-  "bulletin de paie",
-  "comprendre sa fiche de paie",
-  "faire une fiche de paie",
-  "calcul des congés payés",
-  "document d'embauche",
-  "logiciel de paie gratuit",
-  "gestion du personnel",
-  "SIRH",
-];
-
 const TRENDS_KEYWORDS = ["PayFit", "logiciel paie", "logiciel RH"];
 
 // ─── In-memory cache ───────────────────────────────────────────────────────────
@@ -69,54 +57,6 @@ async function fetchGoogleTrends() {
   }
 }
 
-// ─── Serper.dev SERP (20 pages = 2 requêtes × num:100) ────────────────────────
-
-interface SerperOrganic {
-  position: number;
-  title: string;
-  link: string;
-}
-
-async function fetchSerperPage(apiKey: string, keyword: string, page: number): Promise<SerperOrganic[]> {
-  const res = await fetch("https://google.serper.dev/search", {
-    method: "POST",
-    headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ q: keyword, gl: "fr", hl: "fr", num: 100, page }),
-  });
-  if (!res.ok) return [];
-  const data = await res.json() as { organic?: SerperOrganic[] };
-  // page 2 results have position 1-100 relative to that page — offset them
-  return (data.organic ?? []).map((r) => ({
-    ...r,
-    position: r.position + (page - 1) * 100,
-  }));
-}
-
-async function fetchSerperSerp() {
-  const apiKey = process.env.SERPER_API_KEY;
-  if (!apiKey) return [];
-
-  const results = await Promise.all(
-    TRACKED_KEYWORDS.map(async (keyword) => {
-      const [page1, page2] = await Promise.all([
-        fetchSerperPage(apiKey, keyword, 1),
-        fetchSerperPage(apiKey, keyword, 2),
-      ]);
-      const all = [...page1, ...page2];
-      const payfit = all.find((r) => r.link?.includes("payfit.com"));
-
-      return {
-        keyword,
-        position: payfit?.position ?? null,
-        url: payfit?.link ?? null,
-        title: payfit?.title ?? null,
-      };
-    })
-  );
-
-  return results;
-}
-
 // ─── GET /api/seo-data ─────────────────────────────────────────────────────────
 
 export async function GET() {
@@ -124,20 +64,11 @@ export async function GET() {
     return NextResponse.json(cache.data);
   }
 
-  const [trends, serp] = await Promise.allSettled([
-    fetchGoogleTrends(),
-    fetchSerperSerp(),
-  ]);
+  const trends = await fetchGoogleTrends();
 
   const data = {
     timestamp: new Date().toISOString(),
-    trends:
-      trends.status === "fulfilled" ? trends.value : { labels: [], series: {} },
-    serp: serp.status === "fulfilled" ? serp.value : [],
-    serpError:
-      serp.status === "rejected"
-        ? String((serp as PromiseRejectedResult).reason)
-        : null,
+    trends,
   };
 
   cache = { data, ts: Date.now() };
