@@ -1,33 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { ExternalLink, RefreshCw } from "lucide-react";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface SerpResult {
-  keyword: string;
-  position: number | null;
-  url: string | null;
-  title: string | null;
-}
-
-interface SeoData {
-  timestamp: string | null;
-  trends: { labels: string[]; series: Record<string, number[]> };
-  serp: SerpResult[];
-  serpRunFinishedAt: string | null;
-  serpError: string | null;
-}
+import { useSeoData } from "../../context/SeoDataContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -63,81 +40,7 @@ function PositionBadge({ position }: { position: number | null }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SEOPositioningPage() {
-  const [seoData, setSeoData] = useState<SeoData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [polling, setPolling] = useState(false); // run Apify en cours
-  const [pollSeconds, setPollSeconds] = useState(0);
-  const pollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    fetch("/api/seo-data")
-      .then((r) => r.json())
-      .then((d: SeoData) => setSeoData(d))
-      .catch(() => setSeoData(null))
-      .finally(() => setLoading(false));
-
-    return () => stopPolling();
-  }, []);
-
-  function stopPolling() {
-    if (pollInterval.current) {
-      clearInterval(pollInterval.current);
-      pollInterval.current = null;
-    }
-  }
-
-  function startPolling(runId: string) {
-    setPolling(true);
-    setPollSeconds(0);
-    let elapsed = 0;
-
-    pollInterval.current = setInterval(async () => {
-      elapsed += 5;
-      setPollSeconds(elapsed);
-
-      try {
-        const res = await fetch(`/api/serp-status?runId=${runId}`);
-        const json = await res.json() as {
-          status: string;
-          serp?: SerpResult[];
-          finishedAt?: string;
-        };
-
-        if (json.status === "SUCCEEDED" && json.serp) {
-          stopPolling();
-          setPolling(false);
-          setSeoData((prev) =>
-            prev
-              ? { ...prev, serp: json.serp!, serpRunFinishedAt: json.finishedAt ?? null }
-              : prev
-          );
-        } else if (json.status === "FAILED" || json.status === "ABORTED") {
-          stopPolling();
-          setPolling(false);
-        }
-      } catch {
-        // réseau instable, on réessaie au prochain tick
-      }
-    }, 5000);
-  }
-
-  async function triggerRefresh() {
-    stopPolling();
-    setPolling(true);
-    setPollSeconds(0);
-
-    try {
-      const res = await fetch("/api/serp-refresh", { method: "POST" });
-      const json = await res.json() as { runId?: string; error?: string };
-      if (json.runId) {
-        startPolling(json.runId);
-      } else {
-        setPolling(false);
-      }
-    } catch {
-      setPolling(false);
-    }
-  }
+  const { seoData, loading, polling, pollSeconds, triggerRefresh } = useSeoData();
 
   const trendChartData = seoData?.trends?.labels?.length
     ? buildTrendChartData(seoData.trends.labels, seoData.trends.series)
@@ -235,7 +138,6 @@ export default function SEOPositioningPage() {
         </div>
 
         {polling && serp.length === 0 ? (
-          // Skeleton pendant le chargement initial
           <div className="p-6 space-y-3">
             {Array.from({ length: 9 }).map((_, i) => (
               <div key={i} className="flex items-center gap-4 animate-pulse">

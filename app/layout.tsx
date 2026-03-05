@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SeoDataProvider } from "./context/SeoDataContext";
 
 export const metadata: Metadata = {
   title: "PayFit SEO Intelligence",
@@ -21,7 +22,9 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <SeoDataProvider>{children}</SeoDataProvider>
+      </body>
     </html>
   );
 }
