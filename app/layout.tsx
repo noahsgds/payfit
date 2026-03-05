@@ -8,6 +8,9 @@ export const metadata: Metadata = {
     icon: "/Payfit-simplifiez-la-gestion-de-la-paie-et-des-RH.png", // ou .svg
     },
   description: "Plateforme d'intelligence SEO propulsée par les agents IA Dust — Équipe SEO PayFit",
+  icons: {
+    icon: "/Payfit-simplifiez-la-gestion-de-la-paie-et-des-RH.png",
+  },
 };
 
 export default function RootLayout({
