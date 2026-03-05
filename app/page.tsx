@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Sidebar, { PageId } from "./components/Sidebar";
-import Header from "./components/Header";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import SEOPositioningPage from "./pages/seo-positioning/SEOPositioningPage";
 import GEOPositioningPage from "./pages/geo-positioning/GEOPositioningPage";
@@ -33,7 +32,6 @@ export default function Home() {
     <div className="flex h-screen overflow-hidden bg-[#F4F5F7]">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header currentPage={currentPage} />
         <main className="flex-1 overflow-y-auto">{renderPage()}</main>
       </div>
     </div>
