@@ -82,7 +82,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await setJobResult(jobId, content);
+    try {
+      await setJobResult(jobId, content);
+    } catch (e) {
+      console.error("[mcp store_result]", e);
+      return NextResponse.json({
+        jsonrpc: "2.0",
+        id,
+        error: { code: -32603, message: "Erreur interne lors du stockage" },
+      });
+    }
 
     return NextResponse.json({
       jsonrpc: "2.0",

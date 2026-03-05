@@ -8,6 +8,7 @@ const headers = () => ({
 });
 
 export async function setJobResult(jobId: string, result: string): Promise<void> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return;
   await fetch(`${SUPABASE_URL}/rest/v1/dust_jobs`, {
     method: "POST",
     headers: { ...headers(), Prefer: "resolution=merge-duplicates" },
@@ -16,11 +17,13 @@ export async function setJobResult(jobId: string, result: string): Promise<void>
 }
 
 export async function getJobResult(jobId: string): Promise<string | null> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/dust_jobs?job_id=eq.${encodeURIComponent(jobId)}&select=result`,
     { headers: headers() }
   );
-  const rows = await res.json();
+  if (!res.ok) return null;
+  const rows = await res.json().catch(() => []);
   return Array.isArray(rows) && rows.length > 0 ? rows[0].result : null;
 }
 
