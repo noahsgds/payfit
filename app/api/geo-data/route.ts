@@ -200,7 +200,7 @@ export async function GET(request: Request) {
     groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")               : Promise.reject("no key"),
     mistral ? callOpenAICompat(mistral, "mistral-small-latest")                  : Promise.reject("no key"),
     openrouter
-      ? callOpenAICompat(openrouter, "mistralai/mistral-7b-instruct:free", {
+      ? callOpenAICompat(openrouter, "deepseek/deepseek-r1:free", {
           "HTTP-Referer": "https://payfit.com",
           "X-Title": "PayFit GEO Dashboard",
         })
@@ -209,13 +209,17 @@ export async function GET(request: Request) {
 
   const getText = (
     r: PromiseSettledResult<string | { response: { text(): string } }>,
-    isGemini = false
+    isGemini = false,
+    stripThink = false,
   ): string | null => {
     if (r.status === "rejected") {
       return String(r.reason) === "no key" ? null : `[Erreur: ${r.reason}]`;
     }
-    if (isGemini) return (r.value as { response: { text(): string } }).response.text();
-    return r.value as string;
+    let text = isGemini
+      ? (r.value as { response: { text(): string } }).response.text()
+      : (r.value as string);
+    if (stripThink) text = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    return text;
   };
 
   const engineDefs: [string, string | null][] = [
@@ -223,7 +227,7 @@ export async function GET(request: Request) {
     ["Gemini",       getText(geminiRes, true)],
     ["Llama (Groq)", getText(groqRes)],
     ["Mistral",      getText(mistralRes)],
-    ["Mistral-7B (OR)", getText(orRes)],
+    ["DeepSeek R1 (OR)", getText(orRes, false, true)],
   ];
 
   const engines = engineDefs
