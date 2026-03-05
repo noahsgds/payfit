@@ -7,6 +7,7 @@ import DashboardPage from "./pages/dashboard/DashboardPage";
 import SEOPositioningPage from "./pages/seo-positioning/SEOPositioningPage";
 import GEOPositioningPage from "./pages/geo-positioning/GEOPositioningPage";
 import SocialListeningPage from "./pages/social-listening/SocialListeningPage";
+import SimulatorStatsPage from "./pages/simulator-stats/SimulatorStatsPage";
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState<PageId>("dashboard");
@@ -21,6 +22,8 @@ export default function Home() {
         return <GEOPositioningPage />;
       case "social-listening":
         return <SocialListeningPage />;
+      case "simulator-stats":
+        return <SimulatorStatsPage />;
       default:
         return <DashboardPage onNavigate={setCurrentPage} />;
     }

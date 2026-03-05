@@ -11,13 +11,15 @@ import {
   Sparkles,
   Settings,
   HelpCircle,
+  BarChart2,
 } from "lucide-react";
 
 export type PageId =
   | "dashboard"
   | "seo-positioning"
   | "geo-positioning"
-  | "social-listening";
+  | "social-listening"
+  | "simulator-stats";
 
 interface NavItem {
   id: PageId;
@@ -43,6 +45,12 @@ const navItems: NavItem[] = [
     id: "social-listening",
     label: "Social Listening",
     icon: <MessageSquare size={18} />,
+  },
+  {
+    id: "simulator-stats",
+    label: "Analytics Simulateurs",
+    icon: <BarChart2 size={18} />,
+    badge: "New",
   },
 ];
 

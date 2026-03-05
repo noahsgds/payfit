@@ -21,6 +21,10 @@ const pageTitles: Record<PageId, { title: string; subtitle: string }> = {
     title: "Social Listening",
     subtitle: "Surveillance des mentions sur Reddit, Twitter & LinkedIn",
   },
+  "simulator-stats": {
+    title: "Analytics Simulateurs",
+    subtitle: "Profils ICP et statistiques des utilisateurs des simulateurs",
+  },
 };
 
 interface HeaderProps {
