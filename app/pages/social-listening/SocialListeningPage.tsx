@@ -257,9 +257,14 @@ export default function SocialListeningPage() {
         </div>
 
         {data && (
-          <span className="text-xs text-slate-400 ml-auto">
+          <span className="text-xs text-slate-400 ml-auto flex items-center gap-1.5">
             Mis à jour {new Date(data.timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-            {data.cached ? " · cache" : " · live"}
+            {data.cached
+              ? <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400">cache</span>
+              : data.source === "mock"
+                ? <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600">demo</span>
+                : <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600">live</span>
+            }
           </span>
         )}
       </div>
