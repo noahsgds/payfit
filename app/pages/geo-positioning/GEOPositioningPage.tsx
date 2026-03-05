@@ -10,6 +10,7 @@ import {
   ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import type { GeoApiResponse } from "../../api/geo-data/route";
+import DustAgentPanel from "../../components/DustAgentPanel";
 import type { ThemeQueryResult } from "../../api/geo-theme/route";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -834,6 +835,14 @@ export default function GEOPositioningPage() {
           </div>
         </div>
       )}
+
+      {/* ── Rapport GEO · Agent Dust ── */}
+      <DustAgentPanel
+        title="Rapport GEO Payfit"
+        description="Génère un rapport GEO complet : marchés couverts, opportunités d'expansion, performances par région"
+        icon="🌍"
+        agentEndpoint="/api/dust-geo-report"
+      />
 
     </div>
   );

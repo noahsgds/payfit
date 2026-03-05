@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Send,
 } from "lucide-react";
+import DustAgentPanel from "../../components/DustAgentPanel";
 
 interface Agent {
   id: string;
@@ -430,6 +431,81 @@ export default function DustAgentsPage() {
           + Configurer un agent
         </button>
       </div>
+
+      {/* ── Outils SEO · Agents Dust ── */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-xl bg-[#1B6EF3]/10 flex items-center justify-center">
+            <span className="text-base">✍️</span>
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Outils SEO · Agents Dust</h2>
+            <p className="text-xs text-slate-400">Génération et optimisation de contenu via vos agents Dust configurés</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          <DustAgentPanel
+            title="Générateur d'article SEO"
+            description="Rédige un article SEO optimisé, en mode guidé ou autonome"
+            icon="🖊️"
+            agentEndpoint="/api/dust-seo-article"
+            modes={{
+              guided: {
+                label: "Mode guidé",
+                fields: [
+                  { name: "keyword",   label: "Mot-clé principal",                                           type: "text"     },
+                  { name: "themes",    label: "Thématiques à couvrir (ex: tarification, SIRH, intégration)", type: "textarea" },
+                  { name: "tone",      label: "Ton (ex: professionnel, décontracté)",                        type: "text"     },
+                  { name: "wordCount", label: "Nombre de mots cible (ex: 1200)",                             type: "text"     },
+                ],
+              },
+              auto: {
+                label: "Mode autonome",
+                fields: [
+                  { name: "topic",     label: "Sujet général (ex: logiciel RH, gestion des paies)", type: "text" },
+                  { name: "tone",      label: "Ton (ex: professionnel, décontracté)",               type: "text" },
+                  { name: "wordCount", label: "Nombre de mots cible (ex: 1200)",                    type: "text" },
+                ],
+              },
+            }}
+          />
+
+          <DustAgentPanel
+            title="Correcteur de contenu SEO"
+            description="Améliore la structure, la densité mots-clés et la lisibilité"
+            icon="🔍"
+            agentEndpoint="/api/dust-seo-analyzer"
+            fields={[
+              { name: "content", label: "Colle ton contenu ici…", type: "textarea" },
+            ]}
+          />
+
+          <DustAgentPanel
+            title="Intégration de backlinks"
+            description="Insère naturellement des liens dans le contenu sur des ancres pertinentes"
+            icon="🔗"
+            agentEndpoint="/api/dust-backlinks"
+            fields={[
+              { name: "content", label: "Contenu à enrichir…",                    type: "textarea" },
+              { name: "links",   label: "URLs à intégrer (séparées par virgules)", type: "text"     },
+            ]}
+          />
+
+          <DustAgentPanel
+            title="Audit SEO"
+            description="Rapport complet : score /100, densité, titres, méta, points d'amélioration"
+            icon="📊"
+            agentEndpoint="/api/dust-seo-audit"
+            fields={[
+              { name: "content", label: "Contenu à auditer…", type: "textarea" },
+            ]}
+          />
+
+        </div>
+      </div>
+
     </div>
   );
 }
