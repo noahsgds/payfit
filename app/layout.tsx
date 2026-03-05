@@ -4,9 +4,6 @@ import { SeoDataProvider } from "./context/SeoDataContext";
 
 export const metadata: Metadata = {
   title: "PayFit SEO Intelligence",
-  icons: {
-    icon: "/Payfit-simplifiez-la-gestion-de-la-paie-et-des-RH.png", // ou .svg
-    },
   description: "Plateforme d'intelligence SEO propulsée par les agents IA Dust — Équipe SEO PayFit",
   icons: {
     icon: "/Payfit-simplifiez-la-gestion-de-la-paie-et-des-RH.png",
