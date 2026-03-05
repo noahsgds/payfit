@@ -192,12 +192,12 @@ export async function GET(request: Request) {
   const [gptRes, geminiRes, groqRes, mistralRes, commandRes] = await Promise.allSettled([
     callOpenAICompat(openai, "gpt-4o-mini"),
     openrouter
-      ? callOpenAICompat(openrouter, "google/gemini-2.0-flash-lite:free", OR_HEADERS)
+      ? callOpenAICompat(openrouter, "google/gemma-3n-e4b-it:free", OR_HEADERS)
       : Promise.reject("no key"),
     groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")  : Promise.reject("no key"),
     mistral ? callOpenAICompat(mistral, "mistral-small-latest")     : Promise.reject("no key"),
     openrouter
-      ? callOpenAICompat(openrouter, "cohere/command-r7b-12-2024:free", OR_HEADERS)
+      ? callOpenAICompat(openrouter, "nousresearch/hermes-3-llama-3.1-405b:free", OR_HEADERS)
       : Promise.reject("no key"),
   ]);
 
@@ -210,10 +210,10 @@ export async function GET(request: Request) {
 
   const engineDefs: [string, string | null][] = [
     ["ChatGPT",       getText(gptRes)],
-    ["Gemini",        getText(geminiRes)],
+    ["Gemma (OR)",    getText(geminiRes)],
     ["Llama (Groq)",  getText(groqRes)],
     ["Mistral",       getText(mistralRes)],
-    ["Command-R (OR)", getText(commandRes)],
+    ["Hermes-3 (OR)", getText(commandRes)],
   ];
 
   const engines = engineDefs

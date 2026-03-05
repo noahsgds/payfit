@@ -15,10 +15,10 @@ import type { GeoApiResponse } from "../../api/geo-data/route";
 
 const ENGINE_META: Record<string, { logo: string; color: string }> = {
   "ChatGPT":      { logo: "🤖", color: "#10B981" },
-  "Gemini":       { logo: "✨", color: "#3B82F6" },
+  "Gemma (OR)":   { logo: "✨", color: "#3B82F6" },
   "Llama (Groq)": { logo: "⚡", color: "#F59E0B" },
   "Mistral":      { logo: "🌊", color: "#8B5CF6" },
-  "Command-R (OR)":   { logo: "🟠", color: "#EC4899" },
+  "Hermes-3 (OR)": { logo: "🟠", color: "#EC4899" },
 };
 
 const SECTOR_AVG = 52;
