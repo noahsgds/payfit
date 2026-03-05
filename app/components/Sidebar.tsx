@@ -67,10 +67,10 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       className={`relative flex flex-col h-screen transition-all duration-300 ease-in-out ${
         collapsed ? "w-16" : "w-64"
       }`}
-      style={{ backgroundColor: "#0F1629" }}
+      style={{ backgroundColor: "#ffffff", borderRight: "1px solid #e2e8f0" }}
     >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-white/10">
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-slate-100">
         <div
           className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm"
           style={{ backgroundColor: "#1B6EF3" }}
@@ -79,7 +79,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </div>
         {!collapsed && (
           <div className="fade-in">
-            <p className="text-white font-bold text-sm leading-none">PayFit</p>
+            <p className="text-slate-900 font-bold text-sm leading-none">PayFit</p>
             <p className="text-slate-400 text-xs mt-0.5">SEO Intelligence</p>
           </div>
         )}
@@ -87,7 +87,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
       {/* AI indicator */}
       {!collapsed && (
-        <div className="mx-3 mt-3 mb-1 px-3 py-2 rounded-xl bg-gradient-to-r from-[#1B6EF3]/20 to-blue-500/10 border border-[#1B6EF3]/20 fade-in">
+        <div className="mx-3 mt-3 mb-1 px-3 py-2 rounded-xl bg-blue-50 border border-blue-100 fade-in">
           <div className="flex items-center gap-2">
             <Sparkles size={12} className="text-[#1B6EF3]" />
             <span className="text-xs text-[#1B6EF3] font-medium">
@@ -104,7 +104,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto">
         {!collapsed && (
-          <p className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <p className="px-3 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Navigation
           </p>
         )}
@@ -116,7 +116,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative ${
                   currentPage === item.id
                     ? "bg-[#1B6EF3] text-white shadow-lg shadow-[#1B6EF3]/20"
-                    : "text-slate-400 hover:bg-white/8 hover:text-white"
+                    : "text-slate-500 hover:bg-blue-50 hover:text-[#1B6EF3]"
                 } ${collapsed ? "justify-center" : ""}`}
               >
                 <span className="flex-shrink-0">{item.icon}</span>
@@ -126,11 +126,9 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                     {item.badge && (
                       <span
                         className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-                          item.badge === "New"
-                            ? "bg-blue-500/20 text-blue-400"
-                            : currentPage === item.id
+                          currentPage === item.id
                             ? "bg-white/20 text-white"
-                            : "bg-slate-700 text-slate-300"
+                            : "bg-blue-100 text-[#1B6EF3]"
                         }`}
                       >
                         {item.badge}
@@ -151,9 +149,9 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       </nav>
 
       {/* Bottom actions */}
-      <div className="px-2 pb-4 border-t border-white/10 pt-3 space-y-1">
+      <div className="px-2 pb-4 border-t border-slate-100 pt-3 space-y-1">
         <button
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/8 hover:text-white transition-all ${
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-blue-50 hover:text-[#1B6EF3] transition-all ${
             collapsed ? "justify-center" : ""
           }`}
         >
@@ -161,7 +159,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           {!collapsed && <span>Paramètres</span>}
         </button>
         <button
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:bg-white/8 hover:text-white transition-all ${
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-500 hover:bg-blue-50 hover:text-[#1B6EF3] transition-all ${
             collapsed ? "justify-center" : ""
           }`}
         >
@@ -170,7 +168,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </button>
         {/* User */}
         <div
-          className={`flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl bg-white/5 ${
+          className={`flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl bg-slate-50 ${
             collapsed ? "justify-center" : ""
           }`}
         >
@@ -179,10 +177,10 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-white text-xs font-medium truncate">
+              <p className="text-slate-800 text-xs font-medium truncate">
                 Équipe SEO
               </p>
-              <p className="text-slate-500 text-xs truncate">PayFit</p>
+              <p className="text-slate-400 text-xs truncate">PayFit</p>
             </div>
           )}
         </div>
@@ -191,7 +189,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       {/* Collapse toggle */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-slate-700 border border-slate-600 rounded-full flex items-center justify-center text-white hover:bg-slate-600 transition-colors z-10"
+        className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-500 hover:bg-blue-50 hover:text-[#1B6EF3] transition-colors z-10"
       >
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
