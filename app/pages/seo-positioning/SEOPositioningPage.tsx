@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +28,9 @@ interface SeoData {
     series: Record<string, number[]>;
   };
   serp: SerpResult[];
+  serpRunStatus: string | null;
+  serpRunFinishedAt: string | null;
+  serpError: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -52,9 +55,7 @@ const TREND_COLORS: Record<string, string> = {
 
 function PositionBadge({ position }: { position: number | null }) {
   if (position === null)
-    return (
-      <span className="text-xs text-slate-400 font-medium">Non classé</span>
-    );
+    return <span className="text-xs text-slate-400 font-medium">—</span>;
   const color =
     position <= 3
       ? "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -62,9 +63,7 @@ function PositionBadge({ position }: { position: number | null }) {
       ? "bg-blue-50 text-blue-700 border-blue-200"
       : "bg-slate-100 text-slate-600 border-slate-200";
   return (
-    <span
-      className={`inline-flex items-center justify-center w-8 h-8 rounded-xl text-xs font-bold border ${color}`}
-    >
+    <span className={`inline-flex items-center justify-center w-8 h-8 rounded-xl text-xs font-bold border ${color}`}>
       {position}
     </span>
   );
@@ -75,6 +74,8 @@ function PositionBadge({ position }: { position: number | null }) {
 export default function SEOPositioningPage() {
   const [seoData, setSeoData] = useState<SeoData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/seo-data")
@@ -83,6 +84,20 @@ export default function SEOPositioningPage() {
       .catch(() => setSeoData(null))
       .finally(() => setLoading(false));
   }, []);
+
+  async function triggerRefresh() {
+    setRefreshing(true);
+    setRefreshMsg(null);
+    try {
+      const res = await fetch("/api/serp-refresh", { method: "POST" });
+      const json = await res.json() as { message?: string; error?: string };
+      setRefreshMsg(json.message ?? json.error ?? "Run lancé.");
+    } catch {
+      setRefreshMsg("Erreur lors du déclenchement.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const trendChartData =
     seoData?.trends?.labels?.length
@@ -93,11 +108,15 @@ export default function SEOPositioningPage() {
 
   const lastUpdated = seoData?.timestamp
     ? new Date(seoData.timestamp).toLocaleString("fr-FR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit",
+      })
+    : null;
+
+  const serpDate = seoData?.serpRunFinishedAt
+    ? new Date(seoData.serpRunFinishedAt).toLocaleString("fr-FR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit",
       })
     : null;
 
@@ -121,9 +140,7 @@ export default function SEOPositioningPage() {
             </h3>
             <p className="text-xs text-slate-400">
               Données réelles Google Trends FR · 90 derniers jours
-              {lastUpdated && (
-                <span className="ml-2 text-slate-300">· {lastUpdated}</span>
-              )}
+              {lastUpdated && <span className="ml-2 text-slate-300">· {lastUpdated}</span>}
             </p>
           </div>
           <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg font-medium">
@@ -134,10 +151,7 @@ export default function SEOPositioningPage() {
         <div className="flex gap-4 mt-3 mb-4">
           {Object.keys(TREND_COLORS).map((k) => (
             <div key={k} className="flex items-center gap-1.5">
-              <div
-                className="w-3 h-2 rounded-full"
-                style={{ backgroundColor: TREND_COLORS[k] }}
-              />
+              <div className="w-3 h-2 rounded-full" style={{ backgroundColor: TREND_COLORS[k] }} />
               <span className="text-xs text-slate-500">{k}</span>
             </div>
           ))}
@@ -147,36 +161,11 @@ export default function SEOPositioningPage() {
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={trendChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
-                axisLine={false}
-                tickLine={false}
-                interval={Math.floor(trendChartData.length / 8)}
-              />
-              <YAxis
-                domain={[0, 100]}
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: "12px",
-                  border: "1px solid #e2e8f0",
-                  fontSize: "12px",
-                }}
-              />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval={Math.floor(trendChartData.length / 8)} />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
               {Object.keys(TREND_COLORS).map((k) => (
-                <Line
-                  key={k}
-                  type="monotone"
-                  dataKey={k}
-                  stroke={TREND_COLORS[k]}
-                  strokeWidth={2}
-                  dot={false}
-                  name={k}
-                />
+                <Line key={k} type="monotone" dataKey={k} stroke={TREND_COLORS[k]} strokeWidth={2} dot={false} name={k} />
               ))}
             </LineChart>
           </ResponsiveContainer>
@@ -188,16 +177,34 @@ export default function SEOPositioningPage() {
       </div>
 
       {/* SERP positions */}
-      {serp.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div>
             <h3 className="font-semibold text-slate-900 text-sm">
               Positions Google — PayFit.com
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Données SERP réelles · France
+              {serp.length > 0
+                ? <>Données SERP réelles · France{serpDate && <span className="ml-1">· dernier run {serpDate}</span>}</>
+                : seoData?.serpError
+                ? <span className="text-red-500">{seoData.serpError}</span>
+                : "Aucun run Apify disponible — lancez un rafraîchissement"}
             </p>
+            {refreshMsg && (
+              <p className="text-xs text-blue-600 mt-1">{refreshMsg}</p>
+            )}
           </div>
+          <button
+            onClick={triggerRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 text-xs bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50 shrink-0"
+          >
+            <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
+            {refreshing ? "Lancement…" : "Rafraîchir"}
+          </button>
+        </div>
+
+        {serp.length > 0 ? (
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50">
@@ -210,38 +217,31 @@ export default function SEOPositioningPage() {
             <tbody>
               {serp.map((row, i) => (
                 <tr key={i} className="border-t border-slate-50 hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 text-sm font-medium text-slate-800">
-                    {row.keyword}
-                  </td>
-                  <td className="px-4 py-3">
-                    <PositionBadge position={row.position} />
-                  </td>
+                  <td className="px-4 py-3 text-sm font-medium text-slate-800">{row.keyword}</td>
+                  <td className="px-4 py-3"><PositionBadge position={row.position} /></td>
                   <td className="px-4 py-3 text-xs text-slate-500">
-                    {row.position !== null
-                      ? `p.${Math.ceil(row.position / 10)}`
-                      : "—"}
+                    {row.position !== null ? `p.${Math.ceil(row.position / 10)}` : "—"}
                   </td>
                   <td className="px-4 py-3 hidden sm:table-cell">
                     {row.url ? (
-                      <a
-                        href={row.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs text-blue-600 hover:underline truncate max-w-xs"
-                      >
+                      <a href={row.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline truncate max-w-xs">
                         <ExternalLink size={10} />
                         {row.url.replace("https://", "").split("/")[0]}
                       </a>
                     ) : (
-                      <span className="text-xs text-slate-300">—</span>
+                      <span className="text-xs text-slate-300">Non classé</span>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        ) : (
+          <div className="p-8 text-center text-sm text-slate-400">
+            Cliquez sur &quot;Rafraîchir&quot; pour lancer un scrape Apify (~2 min), puis rechargez la page.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -10,7 +10,7 @@ const googleTrends = require("google-trends-api") as {
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 heure
 
-const TRACKED_KEYWORDS = [
+export const TRACKED_KEYWORDS = [
   "fiche de paie",
   "bulletin de paie",
   "comprendre sa fiche de paie",
@@ -24,7 +24,9 @@ const TRACKED_KEYWORDS = [
 
 const TRENDS_KEYWORDS = ["PayFit", "logiciel paie", "logiciel RH"];
 
-// ─── In-memory cache (persiste tant que l'instance Vercel est chaude) ──────────
+const ACTOR_ID = "scraperlink~google-search-results-serp-scraper";
+
+// ─── In-memory cache ───────────────────────────────────────────────────────────
 let cache: { data: unknown; ts: number } | null = null;
 
 // ─── Google Trends ─────────────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ async function fetchGoogleTrends() {
   }
 }
 
-// ─── Apify SERP ────────────────────────────────────────────────────────────────
+// ─── Apify SERP — lit le dernier run (pas de déclenchement synchrone) ─────────
 
 interface ApifyResult {
   position: number;
@@ -84,36 +86,47 @@ interface ApifyPage {
   results: ApifyResult[];
 }
 
-async function fetchApifySerp() {
+export async function fetchLastApifyRun(): Promise<{
+  serp: { keyword: string; position: number | null; url: string | null; title: string | null }[];
+  runStatus: string | null;
+  runFinishedAt: string | null;
+}> {
   const token = process.env.APIFY_TOKEN;
-  if (!token) return [];
+  if (!token) return { serp: [], runStatus: null, runFinishedAt: null };
 
-  const res = await fetch(
-    `https://api.apify.com/v2/acts/scraperlink~google-search-results-serp-scraper/run-sync-get-dataset-items?token=${token}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        // L'acteur attend une chaîne séparée par des retours à la ligne
-        queries: TRACKED_KEYWORDS.join("\n"),
-        countryCode: "fr",
-        languageCode: "fr",
-        maxItems: TRACKED_KEYWORDS.length * 10,
-      }),
-    }
+  // 1. Récupère le dernier run SUCCEEDED
+  const runRes = await fetch(
+    `https://api.apify.com/v2/acts/${ACTOR_ID}/runs/last?token=${token}&status=SUCCEEDED`
   );
 
-  if (!res.ok) throw new Error(`Apify ${res.status}`);
+  if (!runRes.ok) {
+    throw new Error(`Apify last run: HTTP ${runRes.status}`);
+  }
 
-  // Chaque item = une page de résultats pour un keyword
-  const pages: ApifyPage[] = await res.json();
+  const runData = await runRes.json() as {
+    data?: { defaultDatasetId?: string; status?: string; finishedAt?: string };
+  };
 
-  return TRACKED_KEYWORDS.map((keyword) => {
+  const datasetId = runData?.data?.defaultDatasetId;
+  const runStatus = runData?.data?.status ?? null;
+  const runFinishedAt = runData?.data?.finishedAt ?? null;
+
+  if (!datasetId) return { serp: [], runStatus, runFinishedAt };
+
+  // 2. Lit les items du dataset
+  const dsRes = await fetch(
+    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}&clean=true`
+  );
+
+  if (!dsRes.ok) throw new Error(`Apify dataset: HTTP ${dsRes.status}`);
+
+  const pages: ApifyPage[] = await dsRes.json();
+
+  const serp = TRACKED_KEYWORDS.map((keyword) => {
     const kwPages = pages.filter(
       (p) => p.search_term?.toLowerCase() === keyword.toLowerCase()
     );
 
-    // Aplatir les résultats avec la position absolue
     const allResults = kwPages.flatMap((p) =>
       (p.results ?? []).map((r) => ({
         ...r,
@@ -130,6 +143,8 @@ async function fetchApifySerp() {
       title: payfit?.title ?? null,
     };
   });
+
+  return { serp, runStatus, runFinishedAt };
 }
 
 // ─── GET /api/seo-data ─────────────────────────────────────────────────────────
@@ -139,10 +154,13 @@ export async function GET() {
     return NextResponse.json(cache.data);
   }
 
-  const [trends, serp] = await Promise.allSettled([
+  const [trends, serpResult] = await Promise.allSettled([
     fetchGoogleTrends(),
-    fetchApifySerp(),
+    fetchLastApifyRun(),
   ]);
+
+  const serpValue =
+    serpResult.status === "fulfilled" ? serpResult.value : null;
 
   const data = {
     timestamp: new Date().toISOString(),
@@ -150,10 +168,12 @@ export async function GET() {
       trends.status === "fulfilled"
         ? trends.value
         : { labels: [], series: {} },
-    serp: serp.status === "fulfilled" ? serp.value : [],
+    serp: serpValue?.serp ?? [],
+    serpRunStatus: serpValue?.runStatus ?? null,
+    serpRunFinishedAt: serpValue?.runFinishedAt ?? null,
     serpError:
-      serp.status === "rejected"
-        ? String((serp as PromiseRejectedResult).reason)
+      serpResult.status === "rejected"
+        ? String((serpResult as PromiseRejectedResult).reason)
         : null,
   };
 
