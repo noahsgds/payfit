@@ -5,7 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
-import { RefreshCw, ExternalLink, TrendingUp, Award, AlertCircle } from "lucide-react";
+import { RefreshCw, ExternalLink, TrendingUp, AlertCircle } from "lucide-react";
 import { useSeoData } from "../../context/SeoDataContext";
 import type { SerpApiResponse, SerpKeywordData } from "../../api/serp/route";
 import CustomKeywordAnalyzer from "./CustomKeywordAnalyzer";
@@ -102,7 +102,6 @@ export default function SEOPositioningPage() {
   // ─── Computed stats ───────────────────────────────────────────────────────
 
   const results = serpData?.results ?? [];
-  const score = visibilityScore(results);
   const competitors = topCompetitors(results);
 
   const distribution = {
@@ -161,31 +160,6 @@ export default function SEOPositioningPage() {
         </div>
       )}
 
-      {/* ── KPI cards ── */}
-      {results.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp size={14} className="text-blue-500" />
-              <span className="text-xs font-medium text-slate-500">Score de visibilité</span>
-            </div>
-            <div className="text-3xl font-bold text-slate-900">{score}<span className="text-lg text-slate-400">/100</span></div>
-          </div>
-          {(["Top 3", "Top 10", "Non classé"] as const).map((label) => {
-            const val = distribution[label as keyof typeof distribution];
-            const color = label === "Top 3" ? "text-emerald-600" : label === "Top 10" ? "text-blue-600" : "text-slate-400";
-            return (
-              <div key={label} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-1">
-                  <Award size={14} className={color} />
-                  <span className="text-xs font-medium text-slate-500">{label}</span>
-                </div>
-                <div className={`text-3xl font-bold ${color}`}>{val}<span className="text-lg text-slate-400"> kw</span></div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {/* ── Google Trends ── */}
       <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
