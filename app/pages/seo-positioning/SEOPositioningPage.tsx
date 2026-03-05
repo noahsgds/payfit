@@ -8,6 +8,7 @@ import {
 import { RefreshCw, ExternalLink, TrendingUp, Award, AlertCircle } from "lucide-react";
 import { useSeoData } from "../../context/SeoDataContext";
 import type { SerpApiResponse, SerpKeywordData } from "../../api/serp/route";
+import CustomKeywordAnalyzer from "./CustomKeywordAnalyzer";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -352,6 +353,9 @@ export default function SEOPositioningPage() {
           </div>
         </div>
       )}
+
+      {/* ── Analyse personnalisée ── */}
+      <CustomKeywordAnalyzer />
 
       {/* ── Empty state ── */}
       {!serpLoading && results.length === 0 && (
