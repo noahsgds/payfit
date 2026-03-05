@@ -10,7 +10,14 @@ const googleTrends = require("google-trends-api") as {
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 heure
 
-const TRENDS_KEYWORDS = ["PayFit", "logiciel paie", "logiciel RH"];
+const TRENDS_KEYWORDS = [
+  "PayFit",
+  "logiciel paie",
+  "logiciel RH",
+  "logiciel SIRH",
+  "bulletin de paie",
+  "fiche de paie",
+];
 
 // ─── In-memory cache ───────────────────────────────────────────────────────────
 let cache: { data: unknown; ts: number } | null = null;

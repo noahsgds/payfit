@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 const TRACKED_KEYWORDS = [
+  "payfit",
   "fiche de paie",
   "bulletin de paie",
   "comprendre sa fiche de paie",

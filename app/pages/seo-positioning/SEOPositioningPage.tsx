@@ -15,6 +15,9 @@ const TREND_COLORS: Record<string, string> = {
   PayFit: "#1B6EF3",
   "logiciel paie": "#8B5CF6",
   "logiciel RH": "#F59E0B",
+  "logiciel SIRH": "#10B981",
+  "bulletin de paie": "#EF4444",
+  "fiche de paie": "#EC4899",
 };
 
 function positionBand(pos: number | null): "top3" | "top10" | "top20" | "top100" | "top200" | "none" {
@@ -110,12 +113,13 @@ export default function SEOPositioningPage() {
     "Non classé": results.filter((r) => positionBand(r.position) === "none").length,
   };
 
-  const trendChartData = (seoData?.trends?.labels ?? []).map((label, i) => ({
-    date: label,
-    PayFit: seoData?.trends.series["PayFit"]?.[i] ?? 0,
-    "logiciel paie": seoData?.trends.series["logiciel paie"]?.[i] ?? 0,
-    "logiciel RH": seoData?.trends.series["logiciel RH"]?.[i] ?? 0,
-  }));
+  const trendChartData = (seoData?.trends?.labels ?? []).map((label, i) => {
+    const entry: Record<string, string | number> = { date: label };
+    for (const kw of Object.keys(TREND_COLORS)) {
+      entry[kw] = seoData?.trends.series[kw]?.[i] ?? 0;
+    }
+    return entry;
+  });
 
   const fetchedAt = serpData?.fetchedAt
     ? new Date(serpData.fetchedAt).toLocaleString("fr-FR", {
@@ -192,10 +196,10 @@ export default function SEOPositioningPage() {
           <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg font-medium">Live</span>
         </div>
 
-        <div className="flex gap-4 mt-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5 mt-3 mb-4">
           {Object.keys(TREND_COLORS).map((k) => (
             <div key={k} className="flex items-center gap-1.5">
-              <div className="w-3 h-2 rounded-full" style={{ backgroundColor: TREND_COLORS[k] }} />
+              <div className="w-3 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: TREND_COLORS[k] }} />
               <span className="text-xs text-slate-500">{k}</span>
             </div>
           ))}
@@ -242,7 +246,12 @@ export default function SEOPositioningPage() {
               <tbody>
                 {results.map((row, i) => (
                   <tr key={i} className="border-t border-slate-50 hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 text-sm font-medium text-slate-800">{row.keyword}</td>
+                    <td className="px-4 py-3">
+                    <span className="text-sm font-medium text-slate-800">{row.keyword}</span>
+                    {row.keyword === "payfit" && (
+                      <span className="ml-2 text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-md">brand</span>
+                    )}
+                  </td>
                     <td className="px-4 py-3"><PositionBadge position={row.position} /></td>
                     <td className="px-4 py-3 hidden sm:table-cell">
                       {row.competitorsAbove.length > 0 ? (
