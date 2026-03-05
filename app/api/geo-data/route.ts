@@ -187,12 +187,9 @@ export async function GET(request: Request) {
     ? new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1" })
     : null;
 
-  // All 4 in parallel — optional engines skipped if key absent
-  const [gptRes, gemmaRes, groqRes, mistralRes] = await Promise.allSettled([
+  // All 3 in parallel — optional engines skipped if key absent
+  const [gptRes, groqRes, mistralRes] = await Promise.allSettled([
     callOpenAICompat(openai, "gpt-4o-mini"),
-    openrouter
-      ? callOpenAICompat(openrouter, "google/gemma-3-4b-it:free", OR_HEADERS, true)
-      : Promise.reject("no key"),
     groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")  : Promise.reject("no key"),
     mistral ? callOpenAICompat(mistral, "mistral-small-latest")     : Promise.reject("no key"),
   ]);
@@ -206,7 +203,6 @@ export async function GET(request: Request) {
 
   const engineDefs: [string, string | null][] = [
     ["ChatGPT",      getText(gptRes)],
-    ["Gemma (OR)",   getText(gemmaRes)],
     ["Llama (Groq)", getText(groqRes)],
     ["Mistral",      getText(mistralRes)],
   ];
