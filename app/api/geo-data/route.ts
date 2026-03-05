@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ─── Themes ───────────────────────────────────────────────────────────────────
-// One batched prompt per engine = 2 API calls total instead of 8.
+// One batched prompt per engine = 5 API calls total (all in parallel).
 
 const THEMES = [
   { id: 1, theme: "logiciel paie",      label: "Logiciel de paie PME" },
@@ -112,6 +112,26 @@ function buildEngineResult(engine: string, fullResponse: string): EngineResult {
   return { engine, themes, visibility, avgRank, fullResponse };
 }
 
+// ─── OpenAI-compatible call (shared helper) ───────────────────────────────────
+
+const SYSTEM_MSG = "Tu es un expert en logiciels RH et paie en France. Réponds de façon factuelle et concise.";
+
+async function callOpenAICompat(client: OpenAI, model: string, extraHeaders?: Record<string, string>): Promise<string> {
+  const res = await client.chat.completions.create(
+    {
+      model,
+      messages: [
+        { role: "system", content: SYSTEM_MSG },
+        { role: "user",   content: BATCH_PROMPT },
+      ],
+      max_tokens: 450,
+      temperature: 0.3,
+    },
+    extraHeaders ? { headers: extraHeaders } : undefined
+  );
+  return res.choices[0]?.message?.content ?? "";
+}
+
 // ─── Cache (24h — GEO doesn't change hourly) ─────────────────────────────────
 
 let cache: { data: GeoApiResponse; ts: number } | null = null;
@@ -127,8 +147,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ ...cache.data, cached: true });
   }
 
-  const openaiKey = process.env.OPENAI_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
+  const openaiKey      = process.env.OPENAI_API_KEY;
+  const geminiKey      = process.env.GEMINI_API_KEY;
+  const groqKey        = process.env.GROQ_API_KEY;
+  const mistralKey     = process.env.MISTRAL_API_KEY;
+  const openrouterKey  = process.env.OPENROUTEUR_API_KEY;
+
   if (!openaiKey || !geminiKey) {
     return NextResponse.json(
       { error: "Clés manquantes : OPENAI_API_KEY et GEMINI_API_KEY requis" },
@@ -136,41 +160,62 @@ export async function GET(request: Request) {
     );
   }
 
-  const openai = new OpenAI({ apiKey: openaiKey });
-  const genai = new GoogleGenerativeAI(geminiKey);
+  const openai   = new OpenAI({ apiKey: openaiKey });
+  const genai    = new GoogleGenerativeAI(geminiKey);
   const geminiModel = genai.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-  // 2 API calls total
-  const [gptRes, geminiRes] = await Promise.allSettled([
-    openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "Tu es un expert en logiciels RH et paie en France. Réponds de façon factuelle et concise." },
-        { role: "user",   content: BATCH_PROMPT },
-      ],
-      max_tokens: 450,
-      temperature: 0.3,
-    }),
+  // Optional clients (only created if key present)
+  const groq = groqKey
+    ? new OpenAI({ apiKey: groqKey, baseURL: "https://api.groq.com/openai/v1" })
+    : null;
+  const mistral = mistralKey
+    ? new OpenAI({ apiKey: mistralKey, baseURL: "https://api.mistral.ai/v1" })
+    : null;
+  const openrouter = openrouterKey
+    ? new OpenAI({ apiKey: openrouterKey, baseURL: "https://openrouter.ai/api/v1" })
+    : null;
+
+  // 5 API calls in parallel (optional ones skipped if no key)
+  const [gptRes, geminiRes, groqRes, mistralRes, orRes] = await Promise.allSettled([
+    callOpenAICompat(openai, "gpt-4o-mini"),
     geminiModel.generateContent({
       contents: [{ role: "user", parts: [{ text: BATCH_PROMPT }] }],
       generationConfig: { maxOutputTokens: 450, temperature: 0.3 },
     }),
+    groq
+      ? callOpenAICompat(groq, "llama-3.3-70b-versatile")
+      : Promise.reject("no key"),
+    mistral
+      ? callOpenAICompat(mistral, "mistral-small-latest")
+      : Promise.reject("no key"),
+    openrouter
+      ? callOpenAICompat(openrouter, "google/gemma-2-9b-it:free", {
+          "HTTP-Referer": "https://payfit.com",
+          "X-Title": "PayFit GEO Dashboard",
+        })
+      : Promise.reject("no key"),
   ]);
 
-  const gptText =
-    gptRes.status === "fulfilled"
-      ? (gptRes.value.choices[0]?.message?.content ?? "")
-      : `[Erreur ChatGPT: ${(gptRes as PromiseRejectedResult).reason}]`;
+  const text = (r: PromiseSettledResult<string | { response: { text(): string } }>, isGemini = false) => {
+    if (r.status === "rejected") {
+      const reason = String(r.reason);
+      return reason === "no key" ? null : `[Erreur: ${reason}]`;
+    }
+    if (isGemini) return (r.value as { response: { text(): string } }).response.text();
+    return r.value as string;
+  };
 
-  const geminiText =
-    geminiRes.status === "fulfilled"
-      ? geminiRes.value.response.text()
-      : `[Erreur Gemini: ${(geminiRes as PromiseRejectedResult).reason}]`;
-
-  const engines = [
-    buildEngineResult("ChatGPT", gptText),
-    buildEngineResult("Gemini",  geminiText),
+  const engineDefs: [string, string | null][] = [
+    ["ChatGPT",     text(gptRes)],
+    ["Gemini",      text(geminiRes, true)],
+    ["Llama (Groq)",text(groqRes)],
+    ["Mistral",     text(mistralRes)],
+    ["Gemma (OR)",  text(orRes)],
   ];
+
+  const engines = engineDefs
+    .filter(([, t]) => t !== null)
+    .map(([name, t]) => buildEngineResult(name, t!));
 
   // Global stats
   const allVis = engines.map((e) => e.visibility);

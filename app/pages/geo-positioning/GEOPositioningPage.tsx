@@ -6,20 +6,23 @@ import {
   CheckCircle2, XCircle, Clock,
 } from "lucide-react";
 import {
-  RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import type { GeoApiResponse } from "../../api/geo-data/route";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ENGINE_META: Record<string, { logo: string; color: string }> = {
-  ChatGPT: { logo: "🤖", color: "#10B981" },
-  Gemini:  { logo: "✨", color: "#3B82F6" },
+  "ChatGPT":      { logo: "🤖", color: "#10B981" },
+  "Gemini":       { logo: "✨", color: "#3B82F6" },
+  "Llama (Groq)": { logo: "⚡", color: "#F59E0B" },
+  "Mistral":      { logo: "🌊", color: "#8B5CF6" },
+  "Gemma (OR)":   { logo: "💎", color: "#EC4899" },
 };
 
-// Average sector visibility per engine (benchmark)
-const SECTOR_AVG: Record<string, number> = { ChatGPT: 55, Gemini: 52 };
+// Sector benchmark (estimated avg for HR software players)
+const SECTOR_AVG = 52;
 
 // ─── Highlight PayFit in a text ───────────────────────────────────────────────
 function Highlight({ text }: { text: string }) {
@@ -67,11 +70,11 @@ export default function GEOPositioningPage() {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const radarData = data
+  const visData = data
     ? data.engines.map((e) => ({
-        subject: e.engine,
+        name:    e.engine,
         payfit:  e.visibility,
-        secteur: SECTOR_AVG[e.engine] ?? 50,
+        color:   ENGINE_META[e.engine]?.color ?? "#64748b",
       }))
     : [];
 
@@ -157,31 +160,40 @@ export default function GEOPositioningPage() {
 
       {/* ── Radar + Competitors ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Radar */}
+        {/* Visibility per engine */}
         <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Couverture par moteur</h3>
-          <p className="text-xs text-slate-400 mb-3">PayFit vs moyenne secteur RH</p>
+          <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Visibilité par moteur IA</h3>
+          <p className="text-xs text-slate-400 mb-3">% de thèmes où PayFit est cité · ligne = moyenne secteur</p>
           {loading ? (
             <div className="h-[220px] flex items-center justify-center text-sm text-slate-400">Chargement…</div>
-          ) : radarData.length > 0 ? (
+          ) : visData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="#f1f5f9" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: "#64748b" }} />
-                <Radar name="PayFit"  dataKey="payfit"  stroke="#1B6EF3" fill="#1B6EF3" fillOpacity={0.2} strokeWidth={2} />
-                <Radar name="Secteur" dataKey="secteur" stroke="#CBD5E1" fill="#CBD5E1" fillOpacity={0.1} strokeWidth={1} strokeDasharray="3 3" />
-              </RadarChart>
+              <BarChart data={visData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                <Tooltip
+                  contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
+                  formatter={(v: number | undefined) => [`${v ?? 0}%`, "Visibilité PayFit"]}
+                />
+                <ReferenceLine y={SECTOR_AVG} stroke="#CBD5E1" strokeDasharray="4 3" label={{ value: "moy. secteur", position: "insideTopRight", fontSize: 9, fill: "#94a3b8" }} />
+                <Bar dataKey="payfit" radius={[6, 6, 0, 0]}>
+                  {visData.map((e) => (
+                    <Cell key={e.name} fill={e.color} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-[220px] flex items-center justify-center text-sm text-slate-400">Aucune donnée</div>
           )}
-          <div className="flex gap-4 justify-center mt-2">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-1.5 rounded bg-[#1B6EF3]" /><span className="text-xs text-slate-500">PayFit</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-1.5 rounded bg-slate-300" /><span className="text-xs text-slate-500">Secteur</span>
-            </div>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {visData.map((e) => (
+              <div key={e.name} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: e.color }} />
+                <span className="text-xs text-slate-500">{e.name}</span>
+              </div>
+            ))}
           </div>
         </div>
 
