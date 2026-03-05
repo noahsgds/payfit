@@ -131,18 +131,17 @@ const OR_HEADERS = { "HTTP-Referer": "https://payfit.com", "X-Title": "PayFit GE
 async function callOpenAICompat(
   client: OpenAI,
   model: string,
-  extraHeaders?: Record<string, string>
+  extraHeaders?: Record<string, string>,
+  noSystem = false,
 ): Promise<string> {
-  const res = await client.chat.completions.create(
-    {
-      model,
-      messages: [
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = noSystem
+    ? [{ role: "user", content: `${SYSTEM_MSG}\n\n${BATCH_PROMPT}` }]
+    : [
         { role: "system", content: SYSTEM_MSG },
         { role: "user",   content: BATCH_PROMPT },
-      ],
-      max_tokens: 450,   // 8 lines × ~40 tokens = ~320 min, keep margin
-      temperature: 0.2,  // lower = more stable rankings over time
-    },
+      ];
+  const res = await client.chat.completions.create(
+    { model, messages, max_tokens: 450, temperature: 0.2 },
     extraHeaders ? { headers: extraHeaders } : undefined
   );
   return res.choices[0]?.message?.content ?? "";
@@ -192,7 +191,7 @@ export async function GET(request: Request) {
   const [gptRes, gemmaRes, groqRes, mistralRes] = await Promise.allSettled([
     callOpenAICompat(openai, "gpt-4o-mini"),
     openrouter
-      ? callOpenAICompat(openrouter, "google/gemma-3-4b-it:free", OR_HEADERS)
+      ? callOpenAICompat(openrouter, "google/gemma-3-4b-it:free", OR_HEADERS, true)
       : Promise.reject("no key"),
     groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")  : Promise.reject("no key"),
     mistral ? callOpenAICompat(mistral, "mistral-small-latest")     : Promise.reject("no key"),
