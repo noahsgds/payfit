@@ -11,14 +11,15 @@ const googleTrends = require("google-trends-api") as {
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 heure
 
 const TRACKED_KEYWORDS = [
-  "logiciel de paie",
-  "logiciel RH PME",
-  "logiciel paie TPE",
-  "SIRH France",
-  "gestion congés salariés",
-  "bulletin de paie en ligne",
-  "logiciel gestion RH",
-  "paie automatique entreprise",
+  "fiche de paie",
+  "bulletin de paie",
+  "comprendre sa fiche de paie",
+  "faire une fiche de paie",
+  "calcul des congés payés",
+  "document d'embauche",
+  "logiciel de paie gratuit",
+  "gestion du personnel",
+  "SIRH",
 ];
 
 const TRENDS_KEYWORDS = ["PayFit", "logiciel paie", "logiciel RH"];
