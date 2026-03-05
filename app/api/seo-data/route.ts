@@ -69,12 +69,27 @@ async function fetchGoogleTrends() {
   }
 }
 
-// ─── Serper.dev SERP ───────────────────────────────────────────────────────────
+// ─── Serper.dev SERP (20 pages = 2 requêtes × num:100) ────────────────────────
 
 interface SerperOrganic {
   position: number;
   title: string;
   link: string;
+}
+
+async function fetchSerperPage(apiKey: string, keyword: string, page: number): Promise<SerperOrganic[]> {
+  const res = await fetch("https://google.serper.dev/search", {
+    method: "POST",
+    headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ q: keyword, gl: "fr", hl: "fr", num: 100, page }),
+  });
+  if (!res.ok) return [];
+  const data = await res.json() as { organic?: SerperOrganic[] };
+  // page 2 results have position 1-100 relative to that page — offset them
+  return (data.organic ?? []).map((r) => ({
+    ...r,
+    position: r.position + (page - 1) * 100,
+  }));
 }
 
 async function fetchSerperSerp() {
@@ -83,19 +98,12 @@ async function fetchSerperSerp() {
 
   const results = await Promise.all(
     TRACKED_KEYWORDS.map(async (keyword) => {
-      const res = await fetch("https://google.serper.dev/search", {
-        method: "POST",
-        headers: {
-          "X-API-KEY": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ q: keyword, gl: "fr", hl: "fr", num: 100 }),
-      });
-
-      if (!res.ok) return { keyword, position: null, url: null, title: null };
-
-      const data = await res.json() as { organic?: SerperOrganic[] };
-      const payfit = (data.organic ?? []).find((r) => r.link?.includes("payfit.com"));
+      const [page1, page2] = await Promise.all([
+        fetchSerperPage(apiKey, keyword, 1),
+        fetchSerperPage(apiKey, keyword, 2),
+      ]);
+      const all = [...page1, ...page2];
+      const payfit = all.find((r) => r.link?.includes("payfit.com"));
 
       return {
         keyword,
