@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search,
   TrendingUp,
@@ -8,6 +8,8 @@ import {
   ArrowUpRight,
   Filter,
   Download,
+  RefreshCw,
+  Clock,
 } from "lucide-react";
 import {
   LineChart,
@@ -19,8 +21,29 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  Legend,
 } from "recharts";
 import MetricCard from "../../components/MetricCard";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface SerpResult {
+  keyword: string;
+  position: number | null;
+  url: string | null;
+  title: string | null;
+}
+
+interface SeoData {
+  timestamp: string | null;
+  trends: {
+    labels: string[];
+    series: Record<string, number[]>;
+  };
+  serp: SerpResult[];
+}
+
+// ─── Static fallback data (shown until real data is fetched) ─────────────────
 
 const positionData = [
   { month: "Sep", top3: 720, top10: 1840, top30: 3200 },
@@ -39,96 +62,128 @@ const volumeData = [
   { segment: "Recrutement", volume: 18700, position: 6.1 },
 ];
 
-const keywords = [
-  {
-    keyword: "logiciel de paie",
-    volume: 14800,
-    position: 1,
-    change: 0,
-    difficulty: 72,
-    traffic: 4200,
-  },
-  {
-    keyword: "logiciel RH PME",
-    volume: 8900,
-    position: 2,
-    change: 1,
-    difficulty: 65,
-    traffic: 2100,
-  },
-  {
-    keyword: "logiciel paie TPE",
-    volume: 6600,
-    position: 1,
-    change: 0,
-    difficulty: 58,
-    traffic: 1980,
-  },
-  {
-    keyword: "SIRH France",
-    volume: 5400,
-    position: 3,
-    change: -1,
-    difficulty: 80,
-    traffic: 1100,
-  },
-  {
-    keyword: "gestion congés salariés",
-    volume: 4200,
-    position: 5,
-    change: 2,
-    difficulty: 45,
-    traffic: 680,
-  },
-  {
-    keyword: "bulletin de paie en ligne",
-    volume: 3800,
-    position: 4,
-    change: -2,
-    difficulty: 62,
-    traffic: 720,
-  },
-  {
-    keyword: "logiciel gestion RH",
-    volume: 3200,
-    position: 7,
-    change: 3,
-    difficulty: 70,
-    traffic: 390,
-  },
-  {
-    keyword: "paie automatique entreprise",
-    volume: 2900,
-    position: 2,
-    change: 1,
-    difficulty: 55,
-    traffic: 870,
-  },
+const FALLBACK_KEYWORDS = [
+  { keyword: "logiciel de paie", volume: 14800, position: 1, change: 0, difficulty: 72, traffic: 4200 },
+  { keyword: "logiciel RH PME", volume: 8900, position: 2, change: 1, difficulty: 65, traffic: 2100 },
+  { keyword: "logiciel paie TPE", volume: 6600, position: 1, change: 0, difficulty: 58, traffic: 1980 },
+  { keyword: "SIRH France", volume: 5400, position: 3, change: -1, difficulty: 80, traffic: 1100 },
+  { keyword: "gestion congés salariés", volume: 4200, position: 5, change: 2, difficulty: 45, traffic: 680 },
+  { keyword: "bulletin de paie en ligne", volume: 3800, position: 4, change: -2, difficulty: 62, traffic: 720 },
+  { keyword: "logiciel gestion RH", volume: 3200, position: 7, change: 3, difficulty: 70, traffic: 390 },
+  { keyword: "paie automatique entreprise", volume: 2900, position: 2, change: 1, difficulty: 55, traffic: 870 },
 ];
 
+// Merge Apify SERP results with fallback keyword list
+function mergeKeywords(serp: SerpResult[]) {
+  return FALLBACK_KEYWORDS.map((kw) => {
+    const live = serp.find(
+      (s) => s.keyword.toLowerCase() === kw.keyword.toLowerCase()
+    );
+    if (!live || live.position === null) return kw;
+    const prevPosition = kw.position;
+    return {
+      ...kw,
+      position: live.position,
+      change: prevPosition - live.position, // positive = improved
+    };
+  });
+}
+
+// Build trend chart data from API response
+function buildTrendChartData(
+  labels: string[],
+  series: Record<string, number[]>
+) {
+  return labels.map((label, i) => ({
+    date: label,
+    PayFit: series["PayFit"]?.[i] ?? 0,
+    "logiciel paie": series["logiciel paie"]?.[i] ?? 0,
+    "logiciel RH": series["logiciel RH"]?.[i] ?? 0,
+  }));
+}
+
+const TREND_COLORS: Record<string, string> = {
+  PayFit: "#1B6EF3",
+  "logiciel paie": "#8B5CF6",
+  "logiciel RH": "#F59E0B",
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function SEOPositioningPage() {
-  const [filter, setFilter] = useState<"all" | "top3" | "top10" | "falling">(
-    "all"
-  );
+  const [filter, setFilter] = useState<"all" | "top3" | "top10" | "falling">("all");
   const [search, setSearch] = useState("");
+  const [seoData, setSeoData] = useState<SeoData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load /data/seo-data.json
+  useEffect(() => {
+    const basePath = process.env.NODE_ENV === "production" ? "/payfit" : "";
+    fetch(`${basePath}/data/seo-data.json`)
+      .then((r) => r.json())
+      .then((d: SeoData) => setSeoData(d))
+      .catch(() => setSeoData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const keywords = seoData?.serp?.length
+    ? mergeKeywords(seoData.serp)
+    : FALLBACK_KEYWORDS;
+
+  const trendChartData =
+    seoData?.trends?.labels?.length
+      ? buildTrendChartData(seoData.trends.labels, seoData.trends.series)
+      : [];
+
+  const hasRealData = !!seoData?.timestamp;
 
   const filteredKw = keywords.filter((kw) => {
-    const matchSearch = kw.keyword
-      .toLowerCase()
-      .includes(search.toLowerCase());
+    const matchSearch = kw.keyword.toLowerCase().includes(search.toLowerCase());
     const matchFilter =
-      filter === "all"
-        ? true
-        : filter === "top3"
-        ? kw.position <= 3
-        : filter === "top10"
-        ? kw.position <= 10
-        : kw.change < 0;
+      filter === "all" ? true
+      : filter === "top3" ? kw.position <= 3
+      : filter === "top10" ? kw.position <= 10
+      : kw.change < 0;
     return matchSearch && matchFilter;
   });
 
+  // Format last updated timestamp
+  const lastUpdated = seoData?.timestamp
+    ? new Date(seoData.timestamp).toLocaleString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
   return (
     <div className="p-6 space-y-6 fade-in">
+      {/* Data freshness banner */}
+      {!loading && (
+        <div
+          className={`flex items-center justify-between px-4 py-3 rounded-xl text-xs font-medium border ${
+            hasRealData
+              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+              : "bg-amber-50 border-amber-200 text-amber-700"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Clock size={13} />
+            {hasRealData ? (
+              <span>Données réelles — dernière mise à jour : {lastUpdated}</span>
+            ) : (
+              <span>Données simulées — exécutez <code className="font-mono bg-amber-100 px-1 rounded">npm run fetch-data</code> pour charger les données réelles</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 text-inherit opacity-60">
+            <RefreshCw size={12} />
+            <span>node scripts/fetch-seo-data.mjs</span>
+          </div>
+        </div>
+      )}
+
       {/* Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -165,7 +220,7 @@ export default function SEOPositioningPage() {
         />
       </div>
 
-      {/* Charts */}
+      {/* Charts row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Evolution positions */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
@@ -219,30 +274,9 @@ export default function SEOPositioningPage() {
                   fontSize: "12px",
                 }}
               />
-              <Line
-                type="monotone"
-                dataKey="top3"
-                stroke="#1B6EF3"
-                strokeWidth={2.5}
-                dot={{ fill: "#1B6EF3", r: 4 }}
-                name="Top 3"
-              />
-              <Line
-                type="monotone"
-                dataKey="top10"
-                stroke="#3B82F6"
-                strokeWidth={2}
-                dot={{ fill: "#3B82F6", r: 3 }}
-                name="Top 10"
-              />
-              <Line
-                type="monotone"
-                dataKey="top30"
-                stroke="#CBD5E1"
-                strokeWidth={1.5}
-                dot={false}
-                name="Top 30"
-              />
+              <Line type="monotone" dataKey="top3" stroke="#1B6EF3" strokeWidth={2.5} dot={{ fill: "#1B6EF3", r: 4 }} name="Top 3" />
+              <Line type="monotone" dataKey="top10" stroke="#3B82F6" strokeWidth={2} dot={{ fill: "#3B82F6", r: 3 }} name="Top 10" />
+              <Line type="monotone" dataKey="top30" stroke="#CBD5E1" strokeWidth={1.5} dot={false} name="Top 30" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -286,6 +320,80 @@ export default function SEOPositioningPage() {
         </div>
       </div>
 
+      {/* Google Trends chart — real data when available */}
+      {trendChartData.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <h3 className="font-semibold text-slate-900 text-sm">
+                Google Trends — intérêt de recherche
+              </h3>
+              <p className="text-xs text-slate-400">
+                Données réelles Google Trends FR · 90 derniers jours
+              </p>
+            </div>
+            <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg font-medium">
+              Live
+            </span>
+          </div>
+          <div className="flex gap-4 mt-3 mb-4">
+            {Object.keys(TREND_COLORS).map((k) => (
+              <div key={k} className="flex items-center gap-1.5">
+                <div className="w-3 h-2 rounded-full" style={{ backgroundColor: TREND_COLORS[k] }} />
+                <span className="text-xs text-slate-500">{k}</span>
+              </div>
+            ))}
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={trendChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                axisLine={false}
+                tickLine={false}
+                interval={Math.floor(trendChartData.length / 8)}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  borderRadius: "12px",
+                  border: "1px solid #e2e8f0",
+                  fontSize: "12px",
+                }}
+              />
+              {Object.keys(TREND_COLORS).map((k) => (
+                <Line
+                  key={k}
+                  type="monotone"
+                  dataKey={k}
+                  stroke={TREND_COLORS[k]}
+                  strokeWidth={2}
+                  dot={false}
+                  name={k}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Placeholder Google Trends when no real data */}
+      {!trendChartData.length && (
+        <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center">
+          <TrendingUp size={28} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-sm font-medium text-slate-500">Google Trends — données non encore chargées</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Exécutez <code className="font-mono bg-slate-100 px-1 rounded">npm run fetch-data</code> pour récupérer les tendances réelles
+          </p>
+        </div>
+      )}
+
       {/* Keywords table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -295,6 +403,7 @@ export default function SEOPositioningPage() {
             </h3>
             <p className="text-xs text-slate-400">
               {filteredKw.length} mots-clés affichés
+              {hasRealData && <span className="ml-1 text-emerald-600">· positions Apify SERP</span>}
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -318,13 +427,7 @@ export default function SEOPositioningPage() {
                     : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
                 }`}
               >
-                {f === "all"
-                  ? "Tous"
-                  : f === "top3"
-                  ? "Top 3"
-                  : f === "top10"
-                  ? "Top 10"
-                  : "En baisse"}
+                {f === "all" ? "Tous" : f === "top3" ? "Top 3" : f === "top10" ? "Top 10" : "En baisse"}
               </button>
             ))}
           </div>
@@ -333,18 +436,8 @@ export default function SEOPositioningPage() {
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50">
-                {[
-                  "Mot-clé",
-                  "Volume",
-                  "Position",
-                  "Évolution",
-                  "Difficulté",
-                  "Trafic estimé",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500"
-                  >
+                {["Mot-clé", "Volume", "Position", "Évolution", "Difficulté", "Trafic estimé"].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500">
                     {h}
                   </th>
                 ))}
@@ -352,14 +445,9 @@ export default function SEOPositioningPage() {
             </thead>
             <tbody>
               {filteredKw.map((kw, i) => (
-                <tr
-                  key={i}
-                  className="border-t border-slate-50 hover:bg-slate-50 transition-colors"
-                >
+                <tr key={i} className="border-t border-slate-50 hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3">
-                    <span className="text-sm font-medium text-slate-800">
-                      {kw.keyword}
-                    </span>
+                    <span className="text-sm font-medium text-slate-800">{kw.keyword}</span>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-600">
                     {kw.volume.toLocaleString()}
@@ -388,11 +476,7 @@ export default function SEOPositioningPage() {
                       )}
                       <span
                         className={`text-xs font-semibold ${
-                          kw.change > 0
-                            ? "text-emerald-600"
-                            : kw.change < 0
-                            ? "text-red-600"
-                            : "text-slate-400"
+                          kw.change > 0 ? "text-emerald-600" : kw.change < 0 ? "text-red-600" : "text-slate-400"
                         }`}
                       >
                         {kw.change > 0 ? `+${kw.change}` : kw.change || ""}
@@ -407,17 +491,13 @@ export default function SEOPositioningPage() {
                           style={{
                             width: `${kw.difficulty}%`,
                             backgroundColor:
-                              kw.difficulty >= 70
-                                ? "#EF4444"
-                                : kw.difficulty >= 50
-                                ? "#F59E0B"
-                                : "#1B6EF3",
+                              kw.difficulty >= 70 ? "#EF4444"
+                              : kw.difficulty >= 50 ? "#F59E0B"
+                              : "#1B6EF3",
                           }}
                         />
                       </div>
-                      <span className="text-xs text-slate-500">
-                        {kw.difficulty}
-                      </span>
+                      <span className="text-xs text-slate-500">{kw.difficulty}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-slate-700">

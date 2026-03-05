@@ -6,9 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "fetch-data": "node scripts/fetch-seo-data.mjs",
+    "fetch-data:force": "FORCE=true node scripts/fetch-seo-data.mjs",
+    "build:with-data": "node scripts/fetch-seo-data.mjs && next build"
   },
   "dependencies": {
+    "google-trends-api": "^4.9.2",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
     "react": "19.2.3",
