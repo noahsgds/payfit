@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis,
 } from "recharts";
-import { RefreshCw, ExternalLink, TrendingUp, AlertCircle } from "lucide-react";
+import { RefreshCw, ExternalLink, TrendingUp, AlertCircle, TrendingDown } from "lucide-react";
 import { useSeoData } from "../../context/SeoDataContext";
 import type { SerpApiResponse, SerpKeywordData } from "../../api/serp/route";
 import CustomKeywordAnalyzer from "./CustomKeywordAnalyzer";
@@ -28,6 +29,22 @@ function positionBand(pos: number | null): "top3" | "top10" | "top20" | "top100"
   if (pos <= 20) return "top20";
   if (pos <= 100) return "top100";
   return "top200";
+}
+
+// ─── Trends helpers ────────────────────────────────────────────────────────────
+
+function avg(series: number[]): number {
+  if (!series.length) return 0;
+  return Math.round(series.reduce((a, b) => a + b, 0) / series.length);
+}
+
+function trendPct(series: number[]): number {
+  if (series.length < 4) return 0;
+  const mid = Math.floor(series.length / 2);
+  const first = avg(series.slice(0, mid));
+  const last = avg(series.slice(mid));
+  if (first === 0) return 0;
+  return Math.round(((last - first) / first) * 100);
 }
 
 function visibilityScore(results: SerpKeywordData[]): number {
@@ -112,6 +129,24 @@ export default function SEOPositioningPage() {
     "Top 200": results.filter((r) => positionBand(r.position) === "top200").length,
     "Non classé": results.filter((r) => positionBand(r.position) === "none").length,
   };
+
+  const series = seoData?.trends?.series ?? {};
+
+  const avgChartData = Object.keys(TREND_COLORS)
+    .map((kw) => ({ keyword: kw, avg: avg(series[kw] ?? []) }))
+    .sort((a, b) => b.avg - a.avg);
+
+  const radarData = Object.keys(TREND_COLORS).map((kw) => ({
+    subject: kw,
+    value: avg(series[kw] ?? []),
+    fullMark: 100,
+  }));
+
+  const trendData = Object.keys(TREND_COLORS).map((kw) => ({
+    kw,
+    pct: trendPct(series[kw] ?? []),
+    avg: avg(series[kw] ?? []),
+  }));
 
   const trendChartData = (seoData?.trends?.labels ?? []).map((label, i) => {
     const entry: Record<string, string | number> = { date: label };
@@ -198,6 +233,76 @@ export default function SEOPositioningPage() {
           <div className="h-64 flex items-center justify-center text-sm text-slate-400">Aucune donnée disponible</div>
         )}
       </div>
+
+      {/* ── Trends extra charts ── */}
+      {!trendsLoading && trendChartData.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          {/* Intérêt moyen */}
+          <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+            <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Intérêt moyen / 90j</h3>
+            <p className="text-xs text-slate-400 mb-4">Score Google Trends moyen par mot-clé</p>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={avgChartData} layout="vertical" margin={{ left: 0, right: 24 }}>
+                <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="keyword" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} width={100} />
+                <Tooltip
+                  formatter={(v: number | undefined) => [`${v ?? 0}/100`, "Intérêt moyen"]}
+                  contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
+                />
+                <Bar dataKey="avg" radius={[0, 6, 6, 0]}>
+                  {avgChartData.map((entry) => (
+                    <Cell key={entry.keyword} fill={TREND_COLORS[entry.keyword] ?? "#94a3b8"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Radar */}
+          <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+            <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Profil des mots-clés</h3>
+            <p className="text-xs text-slate-400 mb-2">Intérêt relatif sur 90 jours</p>
+            <ResponsiveContainer width="100%" height={240}>
+              <RadarChart data={radarData} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
+                <PolarGrid stroke="#f1f5f9" />
+                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9, fill: "#64748b" }} />
+                <Radar dataKey="value" stroke="#1B6EF3" fill="#1B6EF3" fillOpacity={0.15} strokeWidth={2} />
+                <Tooltip
+                  formatter={(v: number | undefined) => [`${v ?? 0}/100`, "Intérêt"]}
+                  contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Tendances récentes */}
+          <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+            <h3 className="font-semibold text-slate-900 text-sm mb-0.5">Tendance récente</h3>
+            <p className="text-xs text-slate-400 mb-4">Évolution 2e moitié vs 1re moitié de période</p>
+            <div className="space-y-2.5">
+              {trendData.map(({ kw, pct, avg: kwAvg }) => (
+                <div key={kw} className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: TREND_COLORS[kw] }} />
+                  <span className="text-xs text-slate-600 flex-1 truncate">{kw}</span>
+                  <span className="text-xs text-slate-400 tabular-nums w-8 text-right">{kwAvg}</span>
+                  <span className={`flex items-center gap-0.5 text-xs font-semibold tabular-nums w-14 justify-end ${
+                    pct > 0 ? "text-emerald-600" : pct < 0 ? "text-red-500" : "text-slate-400"
+                  }`}>
+                    {pct > 0
+                      ? <TrendingUp size={11} />
+                      : pct < 0
+                      ? <TrendingDown size={11} />
+                      : null}
+                    {pct > 0 ? "+" : ""}{pct}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
 
       {/* ── SERP Table + Competitors (side by side) ── */}
       {results.length > 0 && (
