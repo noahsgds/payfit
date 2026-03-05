@@ -339,7 +339,7 @@ export default function SimulatorStatsPage() {
                           <Cell key={i} fill={TYPE_COLORS[entry.name] ?? "#64748B"} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(v: number) => [`${v} simulation${v > 1 ? "s" : ""}`, ""]}
+                      <Tooltip formatter={(v: number | undefined) => [`${v ?? 0} simulation${(v ?? 0) > 1 ? "s" : ""}`, ""]}
                         contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
                     </PieChart>
                   </ResponsiveContainer>
