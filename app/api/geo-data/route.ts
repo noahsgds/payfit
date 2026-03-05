@@ -200,7 +200,7 @@ export async function GET(request: Request) {
     groq    ? callOpenAICompat(groq,    "llama-3.3-70b-versatile")               : Promise.reject("no key"),
     mistral ? callOpenAICompat(mistral, "mistral-small-latest")                  : Promise.reject("no key"),
     openrouter
-      ? callOpenAICompat(openrouter, "meta-llama/llama-3.2-3b-instruct:free", {
+      ? callOpenAICompat(openrouter, "microsoft/phi-3-mini-128k-instruct:free", {
           "HTTP-Referer": "https://payfit.com",
           "X-Title": "PayFit GEO Dashboard",
         })
@@ -227,7 +227,7 @@ export async function GET(request: Request) {
     ["Gemini",       getText(geminiRes, true)],
     ["Llama (Groq)", getText(groqRes)],
     ["Mistral",      getText(mistralRes)],
-    ["Llama-3.2 (OR)", getText(orRes)],
+    ["Phi-3 (OR)", getText(orRes)],
   ];
 
   const engines = engineDefs
