@@ -25,6 +25,10 @@ const pageTitles: Record<PageId, { title: string; subtitle: string }> = {
     title: "Analytics Simulateurs",
     subtitle: "Profils ICP et statistiques des utilisateurs des simulateurs",
   },
+  "claude-seo": {
+    title: "Claude SEO",
+    subtitle: "Audit SEO multi-agents propulsé par Anthropic Claude",
+  },
 };
 
 interface HeaderProps {
