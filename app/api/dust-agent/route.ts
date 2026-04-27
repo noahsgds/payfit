@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 60;
 
 const DUST_API_BASE = "https://dust.tt/api/v1";
-const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 25;
 
 type DustJson = Record<string, unknown>;
 
@@ -18,36 +16,6 @@ function getConversationId(data: DustJson) {
       data.id ||
       "",
   );
-}
-
-function collectMessages(node: unknown): DustJson[] {
-  if (!node || typeof node !== "object") {
-    return [];
-  }
-
-  if (Array.isArray(node)) {
-    return node.flatMap(collectMessages);
-  }
-
-  const object = node as DustJson;
-  const candidates: DustJson[] = [];
-  const type = object.type || object.role;
-
-  if (
-    type === "agent_message" ||
-    type === "agent_message_success" ||
-    object.status === "succeeded"
-  ) {
-    candidates.push(object);
-  }
-
-  for (const value of Object.values(object)) {
-    if (value && typeof value === "object") {
-      candidates.push(...collectMessages(value));
-    }
-  }
-
-  return candidates;
 }
 
 function extractText(node: unknown): string {
@@ -75,20 +43,58 @@ function extractText(node: unknown): string {
   return "";
 }
 
-function findSucceededAgentResponse(data: DustJson) {
-  const messages = collectMessages(data);
-  const succeeded = messages
-    .filter((message) => message.status === "succeeded")
-    .reverse();
+async function readDustEvents(response: Response) {
+  if (!response.body) {
+    throw new Error("Dust events stream is empty.");
+  }
 
-  for (const message of succeeded) {
-    const text = extractText(message);
-    if (text) {
-      return text;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let answer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data:")) {
+        continue;
+      }
+
+      const raw = line.slice(5).trim();
+      if (!raw || raw === "[DONE]") {
+        continue;
+      }
+
+      let event: DustJson;
+      try {
+        event = JSON.parse(raw) as DustJson;
+      } catch {
+        continue;
+      }
+
+      if (event.type === "generation_tokens") {
+        answer += typeof event.text === "string" ? event.text : "";
+      }
+
+      if (event.type === "agent_error") {
+        throw new Error(extractText(event.error) || "Dust agent returned an error.");
+      }
+
+      if (event.type === "agent_message_success") {
+        return answer.trim() || extractText(event);
+      }
     }
   }
 
-  return "";
+  return answer.trim();
 }
 
 async function dustFetch(path: string, init: RequestInit, apiKey: string) {
@@ -126,19 +132,24 @@ export async function POST(req: NextRequest) {
 
   const wId = workspaceId.trim();
   const configurationId = agentSid.trim();
-  const content = `@${configurationId} ${message.trim()}`;
 
   const createResponse = await dustFetch(
     `/w/${encodeURIComponent(wId)}/assistant/conversations`,
     {
       method: "POST",
       body: JSON.stringify({
+        visibility: "unlisted",
         title: "PayFit SEO Dust pipeline",
         message: {
-          content,
+          content: message.trim(),
           mentions: [{ configurationId }],
           context: {
             timezone: "Europe/Paris",
+            username: "payfit-dashboard",
+            fullName: "PayFit Dashboard",
+            email: "noreply@payfit.com",
+            profilePictureUrl: null,
+            origin: "api",
           },
         },
         skipToolsValidation: false,
@@ -163,39 +174,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  const eventsResponse = await dustFetch(
+    `/w/${encodeURIComponent(wId)}/assistant/conversations/${encodeURIComponent(conversationId)}/events`,
+    { method: "GET" },
+    apiKey,
+  );
 
-    const pollResponse = await dustFetch(
-      `/w/${encodeURIComponent(wId)}/assistant/conversations/${encodeURIComponent(conversationId)}`,
-      { method: "GET" },
-      apiKey,
+  if (!eventsResponse.ok) {
+    const errorText = await eventsResponse.text().catch(() => "");
+    return NextResponse.json(
+      { conversationId, error: errorText || `Dust events failed (${eventsResponse.status}).` },
+      { status: eventsResponse.status },
     );
-
-    const pollData = (await pollResponse.json().catch(() => ({}))) as DustJson;
-    if (!pollResponse.ok) {
-      return NextResponse.json(
-        { error: extractText(pollData) || `Dust polling failed (${pollResponse.status}).` },
-        { status: pollResponse.status },
-      );
-    }
-
-    const result = findSucceededAgentResponse(pollData);
-    if (result) {
-      return NextResponse.json({
-        conversationId,
-        result,
-        status: "succeeded",
-      });
-    }
   }
 
-  return NextResponse.json(
-    {
+  try {
+    const result = await readDustEvents(eventsResponse);
+    return NextResponse.json({
       conversationId,
-      error: "The Dust agent did not finish before the server timeout. Open the conversation in Dust or retry.",
-      status: "timeout",
-    },
-    { status: 504 },
-  );
+      result: result || "Aucune réponse reçue depuis Dust.",
+      status: "succeeded",
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        conversationId,
+        error: error instanceof Error ? error.message : "Dust events stream failed.",
+      },
+      { status: 502 },
+    );
+  }
 }
