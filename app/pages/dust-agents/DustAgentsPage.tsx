@@ -21,27 +21,27 @@ const pipelineAgents = [
   {
     label: "Content engine",
     role: "PayFit_ContentEngine",
-    description: "Identifie, score et priorise jusqu'à 5 sujets SEO B2B RH/Paie pour PayFit.",
+    description: "Identifie, score et priorise jusqu'a 5 sujets SEO B2B RH/Paie pour PayFit.",
     details:
-      "Travaille en français pour les dirigeants et responsables RH de TPE/PME. Il s'appuie sur les sources légales, concurrentielles, tendances et corpus PayFit, puis retourne un tableau de scoring et un JSON pipeline.",
+      "Travaille en francais pour les dirigeants et responsables RH de TPE/PME. Il s'appuie sur les sources legales, concurrentielles, tendances et corpus PayFit, puis retourne un tableau de scoring et un JSON pipeline.",
     sid: "W4MzQnXJu3",
     color: "#1B6EF3",
   },
   {
     label: "Validation manuelle",
-    role: "PayFit_AgentCréa",
-    description: "Transforme un brief KPI ou un thème clair en brouillon d'article PayFit validable.",
+    role: "PayFit_AgentCrea",
+    description: "Transforme un brief KPI ou un theme clair en brouillon d'article PayFit validable.",
     details:
-      "Rédige en français pour les employeurs TPE/PME avec bloc À retenir, H2 interrogatifs, CTA, sources et points de vigilance avant mise en ligne.",
+      "Redige en francais pour les employeurs TPE/PME avec bloc A retenir, H2 interrogatifs, CTA, sources et points de vigilance avant mise en ligne.",
     sid: "2HHu8YbPTV",
     color: "#10B981",
   },
   {
     label: "Backlinks final",
     role: "PayFit_AgentBacklinks",
-    description: "Ajoute le maillage interne et quelques liens officiels sans modifier le contenu éditorial.",
+    description: "Ajoute le maillage interne et quelques liens officiels sans modifier le contenu editorial.",
     details:
-      "Reçoit le payload final validé, n'ajoute des liens que sur des ancres déjà présentes, privilégie PayFit et retourne un rapport de maillage puis l'article markdown final.",
+      "Recoit le payload final valide, n'ajoute des liens que sur des ancres deja presentes, privilegie PayFit et retourne un rapport de maillage puis l'article markdown final.",
     sid: "5A064iifFp",
     color: "#F59E0B",
   },
@@ -52,25 +52,25 @@ const promptPresets = [
     label: "SEO Analysis",
     icon: <FileSearch size={15} />,
     prompt:
-      "Analyse SEO complète de https://payfit.com : priorise les opportunités techniques, contenu, maillage interne, E-E-A-T et GEO. Donne un plan d'action clair.",
+      "Analyse SEO complete de https://payfit.com : priorise les opportunites techniques, contenu, maillage interne, E-E-A-T et GEO. Donne un plan d'action clair.",
   },
   {
     label: "Content Gap",
     icon: <ClipboardList size={15} />,
     prompt:
-      "Identifie les content gaps SEO pour PayFit face aux concurrents RH/paie. Propose les pages ou articles à créer, avec intention de recherche et priorité business.",
+      "Identifie les content gaps SEO pour PayFit face aux concurrents RH/paie. Propose les pages ou articles a creer, avec intention de recherche et priorite business.",
   },
   {
     label: "Keyword Research",
     icon: <FileSearch size={15} />,
     prompt:
-      "Fais une recherche de mots-clés pour PayFit autour de logiciel paie, SIRH, gestion RH, conformité et PME. Groupe par cluster, intention et niveau de priorité.",
+      "Fais une recherche de mots-cles pour PayFit autour de logiciel paie, SIRH, gestion RH, conformite et PME. Groupe par cluster, intention et niveau de priorite.",
   },
   {
     label: "Technical Audit",
     icon: <Wrench size={15} />,
     prompt:
-      "Réalise un audit technique SEO pour https://payfit.com : crawlabilité, indexabilité, performance, canonicals, sitemap, robots, structured data et risques JS.",
+      "Realise un audit technique SEO pour https://payfit.com : crawlabilite, indexabilite, performance, canonicals, sitemap, robots, structured data et risques JS.",
   },
 ];
 
@@ -197,7 +197,7 @@ export default function DustAgentsPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-950">Dust Agent Pipeline</h1>
             <p className="mt-1 max-w-3xl text-sm text-slate-500">
-              Send SEO prompts to your Dust.tt agents, create a conversation, poll the response,
+              Send SEO prompts to your Dust.tt agents, create a conversation, stream the response,
               and keep the pipeline moving from content engine to validation and backlinks.
             </p>
           </div>
@@ -367,7 +367,7 @@ export default function DustAgentsPage() {
             {loading && (
               <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
                 <Loader2 size={16} className="animate-spin" />
-                Polling Dust every 2 seconds...
+                Streaming Dust events from the server...
               </div>
             )}
             {error && (
