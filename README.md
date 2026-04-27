@@ -2,6 +2,18 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+## Claude SEO API configuration
+
+The Claude SEO dashboard calls Anthropic from the server route `/api/claude-seo`.
+Add the API key as an environment variable so it is never exposed in the browser:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-your-claude-api-key
+```
+
+For local development, put it in `.env.local`. On Vercel, add it in
+Project Settings > Environment Variables, then redeploy the app.
+
 First, run the development server:
 
 ```bash
