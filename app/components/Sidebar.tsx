@@ -21,6 +21,7 @@ export type PageId =
   | "geo-positioning"
   | "social-listening"
   | "simulator-stats"
+  | "dust-agents"
   | "claude-seo";
 
 interface NavItem {
@@ -53,6 +54,12 @@ const navItems: NavItem[] = [
     label: "Analytics Simulateurs",
     icon: <BarChart2 size={18} />,
     badge: "New",
+  },
+  {
+    id: "dust-agents",
+    label: "Agents Dust",
+    icon: <Sparkles size={18} />,
+    badge: "API",
   },
   {
     id: "claude-seo",
