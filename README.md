@@ -12,7 +12,7 @@ ANTHROPIC_API_KEY=sk-ant-your-claude-api-key
 ```
 
 For local development, put it in `.env.local`. On Vercel, add it in
-Project Settings > Environment Variables, then redeploy the app.
+Project Settings > Environment Variables, then redeploy the app. The dashboard expects this key at runtime only.
 
 First, run the development server:
 
