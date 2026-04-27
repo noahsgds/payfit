@@ -99,7 +99,7 @@ async function readDustEvents(response: Response) {
 
 async function dustFetch(path: string, init: RequestInit, apiKey: string) {
   const headers: Record<string, string> = {
-    authorization: `Bearer ${apiKey}`,
+    Authorization: `Bearer ${apiKey}`,
   };
 
   if (init.body) {
@@ -163,8 +163,18 @@ export async function POST(req: NextRequest) {
 
   const createData = (await createResponse.json().catch(() => ({}))) as DustJson;
   if (!createResponse.ok) {
+    const authHint =
+      createResponse.status === 401
+        ? "Dust returned 401. Check that DUST_API_KEY is the right key, is deployed on Vercel for this environment, and has access to this workspace."
+        : "";
+
     return NextResponse.json(
-      { error: extractText(createData) || `Dust conversation failed (${createResponse.status}).` },
+      {
+        error:
+          authHint ||
+          extractText(createData) ||
+          `Dust conversation failed (${createResponse.status}).`,
+      },
       { status: createResponse.status },
     );
   }
@@ -185,8 +195,16 @@ export async function POST(req: NextRequest) {
 
   if (!eventsResponse.ok) {
     const errorText = await eventsResponse.text().catch(() => "");
+    const authHint =
+      eventsResponse.status === 401
+        ? "Dust returned 401 while reading events. The API key can create requests only if it belongs to the workspace and can access the selected agent."
+        : "";
+
     return NextResponse.json(
-      { conversationId, error: errorText || `Dust events failed (${eventsResponse.status}).` },
+      {
+        conversationId,
+        error: authHint || errorText || `Dust events failed (${eventsResponse.status}).`,
+      },
       { status: eventsResponse.status },
     );
   }
