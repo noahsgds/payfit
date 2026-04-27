@@ -14,6 +14,19 @@ ANTHROPIC_API_KEY=sk-ant-your-claude-api-key
 For local development, put it in `.env.local`. On Vercel, add it in
 Project Settings > Environment Variables, then redeploy the app. The dashboard expects this key at runtime only.
 
+## Dust API configuration
+
+The Dust agents dashboard calls Dust from the server route `/api/dust-agent`.
+Add the Dust API key as a Vercel environment variable named:
+
+```bash
+DUST_API_KEY=dust-your-api-key
+```
+
+The key is never rendered in the browser. The UI stores conversation history
+locally in the user's browser, including agent, message, conversation ID,
+status, and response.
+
 First, run the development server:
 
 ```bash
