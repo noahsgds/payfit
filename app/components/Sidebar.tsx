@@ -12,6 +12,7 @@ import {
   Settings,
   HelpCircle,
   BarChart2,
+  Bot,
 } from "lucide-react";
 
 export type PageId =
@@ -19,7 +20,8 @@ export type PageId =
   | "seo-positioning"
   | "geo-positioning"
   | "social-listening"
-  | "simulator-stats";
+  | "simulator-stats"
+  | "claude-seo";
 
 interface NavItem {
   id: PageId;
@@ -50,6 +52,12 @@ const navItems: NavItem[] = [
     id: "simulator-stats",
     label: "Analytics Simulateurs",
     icon: <BarChart2 size={18} />,
+    badge: "New",
+  },
+  {
+    id: "claude-seo",
+    label: "Claude SEO",
+    icon: <Bot size={18} />,
     badge: "New",
   },
 ];
