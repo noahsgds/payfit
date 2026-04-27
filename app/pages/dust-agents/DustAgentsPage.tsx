@@ -1,38 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
   ClipboardList,
+  Clock,
   FileSearch,
-  KeyRound,
+  History,
   Loader2,
   Send,
   Server,
+  Trash2,
   Wrench,
 } from "lucide-react";
 
-const DUST_API_BASE = "https://dust.tt/api/v1";
-const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 60;
+const HISTORY_KEY = "payfit-dust-agent-history";
 
 const pipelineAgents = [
   {
     label: "Content engine",
-    description: "Premier agent à lancer dans la pipeline",
+    role: "PayFit_ContentEngine",
+    description: "Identifie, score et priorise jusqu'à 5 sujets SEO B2B RH/Paie pour PayFit.",
+    details:
+      "Travaille en français pour les dirigeants et responsables RH de TPE/PME. Il s'appuie sur les sources légales, concurrentielles, tendances et corpus PayFit, puis retourne un tableau de scoring et un JSON pipeline.",
     sid: "W4MzQnXJu3",
     color: "#1B6EF3",
   },
   {
     label: "Validation manuelle",
-    description: "Agent créa pour la relecture et validation",
+    role: "PayFit_AgentCréa",
+    description: "Transforme un brief KPI ou un thème clair en brouillon d'article PayFit validable.",
+    details:
+      "Rédige en français pour les employeurs TPE/PME avec bloc À retenir, H2 interrogatifs, CTA, sources et points de vigilance avant mise en ligne.",
     sid: "2HHu8YbPTV",
     color: "#10B981",
   },
   {
     label: "Backlinks final",
-    description: "Agent backlinks pour l'article final",
+    role: "PayFit_AgentBacklinks",
+    description: "Ajoute le maillage interne et quelques liens officiels sans modifier le contenu éditorial.",
+    details:
+      "Reçoit le payload final validé, n'ajoute des liens que sur des ancres déjà présentes, privilégie PayFit et retourne un rapport de maillage puis l'article markdown final.",
     sid: "5A064iifFp",
     color: "#F59E0B",
   },
@@ -53,7 +62,7 @@ const promptPresets = [
   },
   {
     label: "Keyword Research",
-    icon: <KeyRound size={15} />,
+    icon: <FileSearch size={15} />,
     prompt:
       "Fais une recherche de mots-clés pour PayFit autour de logiciel paie, SIRH, gestion RH, conformité et PME. Groupe par cluster, intention et niveau de priorité.",
   },
@@ -65,93 +74,18 @@ const promptPresets = [
   },
 ];
 
-type DustJson = Record<string, unknown>;
-
-function getConversationId(data: DustJson) {
-  const conversation = data.conversation as DustJson | undefined;
-  return String(
-    conversation?.sId ||
-      conversation?.id ||
-      data.conversationId ||
-      data.sId ||
-      data.id ||
-      "",
-  );
-}
-
-function collectMessages(node: unknown): DustJson[] {
-  if (!node || typeof node !== "object") {
-    return [];
-  }
-
-  if (Array.isArray(node)) {
-    return node.flatMap(collectMessages);
-  }
-
-  const object = node as DustJson;
-  const candidates: DustJson[] = [];
-  const type = object.type || object.role;
-
-  if (
-    type === "agent_message" ||
-    type === "agent_message_success" ||
-    object.status === "succeeded"
-  ) {
-    candidates.push(object);
-  }
-
-  for (const value of Object.values(object)) {
-    if (value && typeof value === "object") {
-      candidates.push(...collectMessages(value));
-    }
-  }
-
-  return candidates;
-}
-
-function extractText(node: unknown): string {
-  if (typeof node === "string") {
-    return node;
-  }
-
-  if (!node || typeof node !== "object") {
-    return "";
-  }
-
-  if (Array.isArray(node)) {
-    return node.map(extractText).filter(Boolean).join("\n\n");
-  }
-
-  const object = node as DustJson;
-  for (const key of ["text", "content", "value", "markdown", "message"]) {
-    const value = object[key];
-    const text = extractText(value);
-    if (text) {
-      return text;
-    }
-  }
-
-  return "";
-}
-
-function findSucceededAgentResponse(data: DustJson) {
-  const messages = collectMessages(data);
-  const succeeded = messages
-    .filter((message) => message.status === "succeeded")
-    .reverse();
-
-  for (const message of succeeded) {
-    const text = extractText(message);
-    if (text) {
-      return text;
-    }
-  }
-
-  return "";
+interface DustHistoryItem {
+  id: string;
+  agentLabel: string;
+  agentSid: string;
+  conversationId: string;
+  createdAt: string;
+  message: string;
+  result: string;
+  status: "succeeded" | "error";
 }
 
 export default function DustAgentsPage() {
-  const [apiKey, setApiKey] = useState("");
   const [workspaceId, setWorkspaceId] = useState("vTiqcjUPSf");
   const [agentSid, setAgentSid] = useState("W4MzQnXJu3");
   const [message, setMessage] = useState(promptPresets[0].prompt);
@@ -159,87 +93,95 @@ export default function DustAgentsPage() {
   const [error, setError] = useState("");
   const [conversationId, setConversationId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<DustHistoryItem[]>([]);
+
+  const selectedAgent = useMemo(
+    () => pipelineAgents.find((agent) => agent.sid === agentSid) || pipelineAgents[0],
+    [agentSid],
+  );
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(HISTORY_KEY);
+    if (!saved) {
+      return;
+    }
+
+    try {
+      setHistory(JSON.parse(saved) as DustHistoryItem[]);
+    } catch {
+      window.localStorage.removeItem(HISTORY_KEY);
+    }
+  }, []);
+
+  const saveHistory = (items: DustHistoryItem[]) => {
+    setHistory(items);
+    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
+  };
+
+  const addHistoryItem = (item: DustHistoryItem) => {
+    saveHistory([item, ...history].slice(0, 25));
+  };
 
   const sendToDust = async () => {
     setError("");
     setResult("");
     setConversationId("");
 
-    if (!apiKey.trim() || !workspaceId.trim() || !agentSid.trim() || !message.trim()) {
-      setError("API Key, Workspace ID, Agent sId and message are required.");
+    if (!workspaceId.trim() || !agentSid.trim() || !message.trim()) {
+      setError("Workspace ID, Agent sId and message are required.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const content = `@${agentSid} ${message.trim()}`;
-      const createResponse = await fetch(
-        `${DUST_API_BASE}/w/${encodeURIComponent(workspaceId.trim())}/assistant/conversations`,
-        {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${apiKey.trim()}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            title: "PayFit SEO Dust request",
-            message: {
-              content,
-              mentions: [{ configurationId: agentSid.trim() }],
-              context: {
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              },
-            },
-            skipToolsValidation: false,
-          }),
-        },
-      );
+      const response = await fetch("/api/dust-agent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workspaceId,
+          agentSid,
+          message,
+        }),
+      });
 
-      const createData = (await createResponse.json().catch(() => ({}))) as DustJson;
+      const data = (await response.json()) as {
+        conversationId?: string;
+        result?: string;
+        error?: string;
+      };
 
-      if (!createResponse.ok) {
-        throw new Error(extractText(createData) || `Dust conversation failed (${createResponse.status}).`);
+      if (!response.ok) {
+        throw new Error(data.error || "Dust request failed.");
       }
 
-      const createdConversationId = getConversationId(createData);
-      if (!createdConversationId) {
-        throw new Error("Dust created the conversation but did not return a conversation id.");
-      }
-
-      setConversationId(createdConversationId);
-
-      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-
-        const pollResponse = await fetch(
-          `${DUST_API_BASE}/w/${encodeURIComponent(
-            workspaceId.trim(),
-          )}/assistant/conversations/${encodeURIComponent(createdConversationId)}`,
-          {
-            method: "GET",
-            headers: {
-              authorization: `Bearer ${apiKey.trim()}`,
-            },
-          },
-        );
-
-        const pollData = (await pollResponse.json().catch(() => ({}))) as DustJson;
-
-        if (!pollResponse.ok) {
-          throw new Error(extractText(pollData) || `Dust polling failed (${pollResponse.status}).`);
-        }
-
-        const responseText = findSucceededAgentResponse(pollData);
-        if (responseText) {
-          setResult(responseText);
-          return;
-        }
-      }
-
-      throw new Error("The Dust agent did not finish within 2 minutes. Try again or open the conversation in Dust.");
+      const responseText = data.result || "";
+      const cId = data.conversationId || "";
+      setConversationId(cId);
+      setResult(responseText);
+      addHistoryItem({
+        id: `${Date.now()}`,
+        agentLabel: selectedAgent.label,
+        agentSid,
+        conversationId: cId,
+        createdAt: new Date().toISOString(),
+        message,
+        result: responseText,
+        status: "succeeded",
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Dust request failed.");
+      const messageText = err instanceof Error ? err.message : "Dust request failed.";
+      setError(messageText);
+      addHistoryItem({
+        id: `${Date.now()}`,
+        agentLabel: selectedAgent.label,
+        agentSid,
+        conversationId: "",
+        createdAt: new Date().toISOString(),
+        message,
+        result: messageText,
+        status: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -260,23 +202,13 @@ export default function DustAgentsPage() {
             </p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 shadow-sm">
-            Workspace: <span className="font-mono text-slate-800">vTiqcjUPSf</span>
+            API key: <span className="font-mono text-slate-800">DUST_API_KEY</span> on Vercel
           </div>
         </div>
       </div>
 
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <label>
-            <span className="mb-1 block text-xs font-semibold text-slate-600">API Key</span>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-              placeholder="Dust API key"
-              className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition-colors focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-            />
-          </label>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <label>
             <span className="mb-1 block text-xs font-semibold text-slate-600">Workspace ID</span>
             <input
@@ -313,6 +245,13 @@ export default function DustAgentsPage() {
             </button>
           ))}
         </div>
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Selected agent
+          </p>
+          <h3 className="mt-2 text-sm font-bold text-slate-950">{selectedAgent.role}</h3>
+          <p className="mt-1 text-sm text-slate-600">{selectedAgent.details}</p>
+        </div>
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -348,6 +287,70 @@ export default function DustAgentsPage() {
           Send to Dust
         </button>
       </section>
+
+      {history.length > 0 && (
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 p-4">
+            <div className="flex items-center gap-2">
+              <History size={17} className="text-slate-500" />
+              <div>
+                <h2 className="text-sm font-bold text-slate-950">Conversation history</h2>
+                <p className="text-xs text-slate-500">Stored locally in this browser.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => saveHistory([])}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              <Trash2 size={14} />
+              Clear history
+            </button>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {history.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setAgentSid(item.agentSid);
+                  setMessage(item.message);
+                  setResult(item.status === "succeeded" ? item.result : "");
+                  setError(item.status === "error" ? item.result : "");
+                  setConversationId(item.conversationId);
+                }}
+                className="block w-full p-4 text-left transition-colors hover:bg-slate-50"
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <span className="text-sm font-semibold text-slate-950">{item.agentLabel}</span>
+                  <span className="flex items-center gap-1 text-xs text-slate-400">
+                    <Clock size={13} />
+                    {new Date(item.createdAt).toLocaleString("fr-FR")}
+                  </span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{item.message}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-xs text-slate-500">
+                    {item.agentSid}
+                  </span>
+                  {item.conversationId && (
+                    <span className="rounded-full bg-blue-50 px-2 py-1 font-mono text-xs text-blue-600">
+                      {item.conversationId}
+                    </span>
+                  )}
+                  <span
+                    className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                      item.status === "succeeded"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {item.status}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {(loading || error || result) && (
         <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -391,8 +394,8 @@ export default function DustAgentsPage() {
             <h2 className="text-sm font-bold text-emerald-950">Dust setup guide</h2>
             <div className="mt-2 grid grid-cols-1 gap-3 text-xs leading-5 text-emerald-800 md:grid-cols-3">
               <p>
-                <strong>API key:</strong> open Dust, go to developer/API settings, create a key,
-                and paste it here. The key is used only for the browser request.
+                <strong>API key:</strong> store the Dust key in Vercel as
+                <span className="font-mono"> DUST_API_KEY</span>. It is never displayed in the dashboard.
               </p>
               <p>
                 <strong>Workspace ID:</strong> copy it from a Dust URL after <span className="font-mono">/w/</span>.
