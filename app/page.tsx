@@ -8,6 +8,7 @@ import GEOPositioningPage from "./pages/geo-positioning/GEOPositioningPage";
 import SocialListeningPage from "./pages/social-listening/SocialListeningPage";
 import SimulatorStatsPage from "./pages/simulator-stats/SimulatorStatsPage";
 import ClaudeSeoPage from "./pages/claude-seo/ClaudeSeoPage";
+import DustAgentsPage from "./pages/dust-agents/DustAgentsPage";
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState<PageId>("dashboard");
@@ -24,6 +25,8 @@ export default function Home() {
         return <SocialListeningPage />;
       case "simulator-stats":
         return <SimulatorStatsPage />;
+      case "dust-agents":
+        return <DustAgentsPage />;
       case "claude-seo":
         return <ClaudeSeoPage />;
       default:
