@@ -25,6 +25,10 @@ const pageTitles: Record<PageId, { title: string; subtitle: string }> = {
     title: "Analytics Simulateurs",
     subtitle: "Profils ICP et statistiques des utilisateurs des simulateurs",
   },
+  "dust-agents": {
+    title: "Agents Dust",
+    subtitle: "Pipeline SEO connectée aux agents Dust via l'API REST",
+  },
   "claude-seo": {
     title: "Claude SEO",
     subtitle: "Audit SEO multi-agents propulsé par Anthropic Claude",
