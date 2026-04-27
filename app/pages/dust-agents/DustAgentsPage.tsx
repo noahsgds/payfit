@@ -2,510 +2,411 @@
 
 import { useState } from "react";
 import {
-  Bot,
-  Play,
-  Settings,
-  CheckCircle,
   AlertCircle,
-  Clock,
-  Zap,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
+  CheckCircle2,
+  ClipboardList,
+  FileSearch,
+  KeyRound,
+  Loader2,
   Send,
+  Server,
+  Wrench,
 } from "lucide-react";
-import DustAgentPanel from "../../components/DustAgentPanel";
 
-interface Agent {
-  id: string;
-  name: string;
-  description: string;
-  status: "active" | "idle" | "error";
-  lastRun: string;
-  runs: number;
-  agentId: string;
-  capabilities: string[];
-  color: string;
-}
+const DUST_API_BASE = "https://dust.tt/api/v1";
+const POLL_INTERVAL_MS = 2000;
+const MAX_POLL_ATTEMPTS = 60;
 
-const agents: Agent[] = [
+const pipelineAgents = [
   {
-    id: "seo-audit",
-    name: "Agent SEO Audit",
-    description:
-      "Analyse automatique des positions, opportunités de mots-clés et recommandations d'optimisation technique pour PayFit.",
-    status: "active",
-    lastRun: "Il y a 5 min",
-    runs: 247,
-    agentId: "@seo-audit-payfit",
-    capabilities: [
-      "Audit technique",
-      "Analyse de mots-clés",
-      "Recommandations contenu",
-      "Suivi positions",
-    ],
+    label: "Content engine",
+    description: "Premier agent à lancer dans la pipeline",
+    sid: "W4MzQnXJu3",
     color: "#1B6EF3",
   },
   {
-    id: "geo-monitor",
-    name: "Agent GEO Monitor",
-    description:
-      "Surveille la visibilité de PayFit dans les réponses IA (ChatGPT, Perplexity, Gemini) et optimise le contenu pour la GEO.",
-    status: "idle",
-    lastRun: "Il y a 2h",
-    runs: 89,
-    agentId: "@geo-monitor-payfit",
-    capabilities: [
-      "Scan IA responses",
-      "Score de visibilité",
-      "Optimisation GEO",
-      "Alertes mentions",
-    ],
-    color: "#3B82F6",
+    label: "Validation manuelle",
+    description: "Agent créa pour la relecture et validation",
+    sid: "2HHu8YbPTV",
+    color: "#10B981",
   },
   {
-    id: "competitive-intel",
-    name: "Agent Competitive Intel",
-    description:
-      "Analyse continue des stratégies SEO des concurrents (Sage HR, Lucca, Factorial, Workday) et détecte les opportunités.",
-    status: "active",
-    lastRun: "Il y a 30 min",
-    runs: 156,
-    agentId: "@competitive-intel-payfit",
-    capabilities: [
-      "Suivi concurrents",
-      "Gap analysis",
-      "Alertes nouvelles pages",
-      "Benchmarking",
-    ],
+    label: "Backlinks final",
+    description: "Agent backlinks pour l'article final",
+    sid: "5A064iifFp",
     color: "#F59E0B",
   },
 ];
 
-const statusConfig = {
-  active: {
-    label: "Actif",
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    dot: "bg-emerald-500",
-    icon: <CheckCircle size={12} />,
+const promptPresets = [
+  {
+    label: "SEO Analysis",
+    icon: <FileSearch size={15} />,
+    prompt:
+      "Analyse SEO complète de https://payfit.com : priorise les opportunités techniques, contenu, maillage interne, E-E-A-T et GEO. Donne un plan d'action clair.",
   },
-  idle: {
-    label: "En attente",
-    color: "text-slate-500",
-    bg: "bg-slate-50",
-    dot: "bg-slate-400",
-    icon: <Clock size={12} />,
+  {
+    label: "Content Gap",
+    icon: <ClipboardList size={15} />,
+    prompt:
+      "Identifie les content gaps SEO pour PayFit face aux concurrents RH/paie. Propose les pages ou articles à créer, avec intention de recherche et priorité business.",
   },
-  error: {
-    label: "Erreur",
-    color: "text-red-600",
-    bg: "bg-red-50",
-    dot: "bg-red-500",
-    icon: <AlertCircle size={12} />,
+  {
+    label: "Keyword Research",
+    icon: <KeyRound size={15} />,
+    prompt:
+      "Fais une recherche de mots-clés pour PayFit autour de logiciel paie, SIRH, gestion RH, conformité et PME. Groupe par cluster, intention et niveau de priorité.",
   },
-};
+  {
+    label: "Technical Audit",
+    icon: <Wrench size={15} />,
+    prompt:
+      "Réalise un audit technique SEO pour https://payfit.com : crawlabilité, indexabilité, performance, canonicals, sitemap, robots, structured data et risques JS.",
+  },
+];
 
-interface ChatMessage {
-  role: "user" | "agent";
-  content: string;
-  timestamp: string;
-}
+type DustJson = Record<string, unknown>;
 
-function AgentChat({ agent }: { agent: Agent }) {
-  const [open, setOpen] = useState(false);
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "agent",
-      content: `Bonjour ! Je suis ${agent.name}. Comment puis-je vous aider aujourd'hui ?`,
-      timestamp: "maintenant",
-    },
-  ]);
-  const [loading, setLoading] = useState(false);
-
-  const mockResponses: Record<string, string[]> = {
-    "seo-audit": [
-      "J'analyse actuellement 2,847 mots-clés pour PayFit. Les positions top 3 représentent 847 termes soit une hausse de +12% ce mois.",
-      "Recommandation : optimisez la page /logiciel-paie — elle peut gagner 3 positions sur 'logiciel de paie PME'.",
-      "Audit technique terminé : 94% des pages sont indexées. 23 erreurs 404 détectées, je vous prépare la liste.",
-    ],
-    "geo-monitor": [
-      "PayFit est mentionné dans 68% des réponses IA sur 'logiciel RH France'. Perplexity vous cite en #2.",
-      "Nouveau : ChatGPT-4o vous recommande pour 'gestion paie TPE'. Opportunité de renforcer ce segment.",
-      "Score GEO actuel : 7.2/10. Pour progresser, je recommande d'enrichir les pages avec des FAQ structurées.",
-    ],
-    "competitive-intel": [
-      "Sage HR a publié 3 nouvelles pages ciblant 'logiciel SIRH'. Leur trafic estimé augmente de 8% ce mois.",
-      "Opportunité détectée : Factorial est absent sur 'paie automatique ETI' — 1,900 recherches/mois non capturées.",
-      "Lucca renforce son blog RH avec 12 articles ce trimestre. Gap content identifié sur les fiches de paie.",
-    ],
-  };
-
-  const sendMessage = () => {
-    if (!input.trim()) return;
-    const userMsg: ChatMessage = {
-      role: "user",
-      content: input,
-      timestamp: "maintenant",
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setLoading(true);
-
-    setTimeout(() => {
-      const responses = mockResponses[agent.id] || [];
-      const response =
-        responses[Math.floor(Math.random() * responses.length)] ||
-        "Je traite votre demande...";
-      setMessages((prev) => [
-        ...prev,
-        { role: "agent", content: response, timestamp: "maintenant" },
-      ]);
-      setLoading(false);
-    }, 1200);
-  };
-
-  return (
-    <div className="mt-3 border-t border-slate-100 pt-3">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
-      >
-        <span className="flex items-center gap-1.5">
-          <Zap size={12} className="text-[#1B6EF3]" />
-          Chat avec l&apos;agent
-        </span>
-        {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-      </button>
-
-      {open && (
-        <div className="mt-3 fade-in">
-          <div className="bg-slate-50 rounded-xl p-3 h-40 overflow-y-auto space-y-2 mb-2">
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-xs px-3 py-2 rounded-xl text-xs ${
-                    msg.role === "user"
-                      ? "bg-[#1B6EF3] text-white"
-                      : "bg-white text-slate-700 border border-slate-200"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-              </div>
-            ))}
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-slate-200 px-3 py-2 rounded-xl">
-                  <div className="flex gap-1">
-                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              placeholder={`Demandez à ${agent.name}...`}
-              className="flex-1 text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-[#1B6EF3] transition-colors"
-            />
-            <button
-              onClick={sendMessage}
-              className="p-2 bg-[#1B6EF3] text-white rounded-xl hover:bg-[#1549C7] transition-colors"
-            >
-              <Send size={12} />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+function getConversationId(data: DustJson) {
+  const conversation = data.conversation as DustJson | undefined;
+  return String(
+    conversation?.sId ||
+      conversation?.id ||
+      data.conversationId ||
+      data.sId ||
+      data.id ||
+      "",
   );
 }
 
-export default function DustAgentsPage() {
-  const [connecting, setConnecting] = useState<string | null>(null);
+function collectMessages(node: unknown): DustJson[] {
+  if (!node || typeof node !== "object") {
+    return [];
+  }
 
-  const handleConnect = (agentId: string) => {
-    setConnecting(agentId);
-    setTimeout(() => setConnecting(null), 2000);
+  if (Array.isArray(node)) {
+    return node.flatMap(collectMessages);
+  }
+
+  const object = node as DustJson;
+  const candidates: DustJson[] = [];
+  const type = object.type || object.role;
+
+  if (
+    type === "agent_message" ||
+    type === "agent_message_success" ||
+    object.status === "succeeded"
+  ) {
+    candidates.push(object);
+  }
+
+  for (const value of Object.values(object)) {
+    if (value && typeof value === "object") {
+      candidates.push(...collectMessages(value));
+    }
+  }
+
+  return candidates;
+}
+
+function extractText(node: unknown): string {
+  if (typeof node === "string") {
+    return node;
+  }
+
+  if (!node || typeof node !== "object") {
+    return "";
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(extractText).filter(Boolean).join("\n\n");
+  }
+
+  const object = node as DustJson;
+  for (const key of ["text", "content", "value", "markdown", "message"]) {
+    const value = object[key];
+    const text = extractText(value);
+    if (text) {
+      return text;
+    }
+  }
+
+  return "";
+}
+
+function findSucceededAgentResponse(data: DustJson) {
+  const messages = collectMessages(data);
+  const succeeded = messages
+    .filter((message) => message.status === "succeeded")
+    .reverse();
+
+  for (const message of succeeded) {
+    const text = extractText(message);
+    if (text) {
+      return text;
+    }
+  }
+
+  return "";
+}
+
+export default function DustAgentsPage() {
+  const [apiKey, setApiKey] = useState("");
+  const [workspaceId, setWorkspaceId] = useState("vTiqcjUPSf");
+  const [agentSid, setAgentSid] = useState("W4MzQnXJu3");
+  const [message, setMessage] = useState(promptPresets[0].prompt);
+  const [result, setResult] = useState("");
+  const [error, setError] = useState("");
+  const [conversationId, setConversationId] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const sendToDust = async () => {
+    setError("");
+    setResult("");
+    setConversationId("");
+
+    if (!apiKey.trim() || !workspaceId.trim() || !agentSid.trim() || !message.trim()) {
+      setError("API Key, Workspace ID, Agent sId and message are required.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const content = `@${agentSid} ${message.trim()}`;
+      const createResponse = await fetch(
+        `${DUST_API_BASE}/w/${encodeURIComponent(workspaceId.trim())}/assistant/conversations`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${apiKey.trim()}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            title: "PayFit SEO Dust request",
+            message: {
+              content,
+              mentions: [{ configurationId: agentSid.trim() }],
+              context: {
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              },
+            },
+            skipToolsValidation: false,
+          }),
+        },
+      );
+
+      const createData = (await createResponse.json().catch(() => ({}))) as DustJson;
+
+      if (!createResponse.ok) {
+        throw new Error(extractText(createData) || `Dust conversation failed (${createResponse.status}).`);
+      }
+
+      const createdConversationId = getConversationId(createData);
+      if (!createdConversationId) {
+        throw new Error("Dust created the conversation but did not return a conversation id.");
+      }
+
+      setConversationId(createdConversationId);
+
+      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+
+        const pollResponse = await fetch(
+          `${DUST_API_BASE}/w/${encodeURIComponent(
+            workspaceId.trim(),
+          )}/assistant/conversations/${encodeURIComponent(createdConversationId)}`,
+          {
+            method: "GET",
+            headers: {
+              authorization: `Bearer ${apiKey.trim()}`,
+            },
+          },
+        );
+
+        const pollData = (await pollResponse.json().catch(() => ({}))) as DustJson;
+
+        if (!pollResponse.ok) {
+          throw new Error(extractText(pollData) || `Dust polling failed (${pollResponse.status}).`);
+        }
+
+        const responseText = findSucceededAgentResponse(pollData);
+        if (responseText) {
+          setResult(responseText);
+          return;
+        }
+      }
+
+      throw new Error("The Dust agent did not finish within 2 minutes. Try again or open the conversation in Dust.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Dust request failed.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="p-6 space-y-6 fade-in">
-      {/* Header card */}
-      <div className="bg-gradient-to-r from-[#0F1629] to-[#1a2744] rounded-2xl p-6 text-white">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-[#1B6EF3] flex items-center justify-center">
-            <Bot size={20} />
-          </div>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#10B981]">
+          Dust REST API
+        </p>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="font-bold">Agents IA Dust</h2>
-            <p className="text-slate-400 text-xs">
-              3 agents connectés et opérationnels
+            <h1 className="text-2xl font-bold text-slate-950">Dust Agent Pipeline</h1>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
+              Send SEO prompts to your Dust.tt agents, create a conversation, poll the response,
+              and keep the pipeline moving from content engine to validation and backlinks.
             </p>
           </div>
-        </div>
-        <div className="grid grid-cols-3 gap-4 mt-4">
-          {[
-            { label: "Agents actifs", value: "2/3" },
-            { label: "Analyses ce mois", value: "1,247" },
-            { label: "Insights générés", value: "89" },
-          ].map((s) => (
-            <div key={s.label} className="bg-white/10 rounded-xl p-3 text-center">
-              <p className="text-xl font-bold">{s.value}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{s.label}</p>
-            </div>
-          ))}
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 shadow-sm">
+            Workspace: <span className="font-mono text-slate-800">vTiqcjUPSf</span>
+          </div>
         </div>
       </div>
 
-      {/* Setup guide */}
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-        <h3 className="font-semibold text-blue-900 text-sm mb-3">
-          Comment connecter un agent Dust
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            {
-              step: "1",
-              title: "Créez votre espace Dust",
-              desc: "Accédez à dust.tt et créez un compte avec votre email PayFit",
-            },
-            {
-              step: "2",
-              title: "Configurez l'agent",
-              desc: "Définissez le nom @agent, le modèle et les sources de données",
-            },
-            {
-              step: "3",
-              title: "Copiez l'Agent ID",
-              desc: "Collez l'identifiant @agent dans le champ dédié ci-dessous",
-            },
-          ].map((item) => (
-            <div key={item.step} className="flex gap-3">
-              <div className="w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                {item.step}
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-blue-900">
-                  {item.title}
-                </p>
-                <p className="text-xs text-blue-600 mt-0.5">{item.desc}</p>
-              </div>
-            </div>
-          ))}
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <label>
+            <span className="mb-1 block text-xs font-semibold text-slate-600">API Key</span>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder="Dust API key"
+              className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition-colors focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+            />
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold text-slate-600">Workspace ID</span>
+            <input
+              value={workspaceId}
+              onChange={(event) => setWorkspaceId(event.target.value)}
+              className="h-11 w-full rounded-lg border border-slate-200 px-3 font-mono text-sm outline-none transition-colors focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+            />
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold text-slate-600">Agent sId</span>
+            <input
+              value={agentSid}
+              onChange={(event) => setAgentSid(event.target.value)}
+              className="h-11 w-full rounded-lg border border-slate-200 px-3 font-mono text-sm outline-none transition-colors focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+            />
+          </label>
         </div>
-        <a
-          href="https://dust.tt"
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-flex items-center gap-1.5 text-xs text-blue-600 font-medium hover:underline"
-        >
-          Ouvrir Dust.tt <ExternalLink size={11} />
-        </a>
-      </div>
 
-      {/* Agents list */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {agents.map((agent) => {
-          const sc = statusConfig[agent.status];
-          return (
-            <div
-              key={agent.id}
-              className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-shadow"
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {pipelineAgents.map((agent) => (
+            <button
+              key={agent.sid}
+              onClick={() => setAgentSid(agent.sid)}
+              className={`rounded-lg border bg-white p-3 text-left transition-all hover:shadow-sm ${
+                agentSid === agent.sid ? "border-slate-900 ring-2 ring-slate-900/5" : "border-slate-200"
+              }`}
             >
-              {/* Agent header */}
-              <div className="flex items-start justify-between mb-3">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: `${agent.color}15` }}
-                >
-                  <Bot size={18} style={{ color: agent.color }} />
-                </div>
-                <div
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${sc.bg} ${sc.color}`}
-                >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${sc.dot} ${
-                      agent.status === "active" ? "animate-pulse-dot" : ""
-                    }`}
-                  />
-                  {sc.label}
-                </div>
-              </div>
-
-              <h3 className="font-semibold text-slate-900 text-sm">
-                {agent.name}
-              </h3>
-              <p className="text-xs text-[#1B6EF3] font-mono mt-0.5 mb-2">
-                {agent.agentId}
-              </p>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                {agent.description}
-              </p>
-
-              {/* Capabilities */}
-              <div className="flex flex-wrap gap-1 mt-3">
-                {agent.capabilities.map((cap) => (
-                  <span
-                    key={cap}
-                    className="text-xs bg-slate-50 border border-slate-100 text-slate-600 px-2 py-0.5 rounded-lg"
-                  >
-                    {cap}
-                  </span>
-                ))}
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <div className="bg-slate-50 rounded-xl p-2 text-center">
-                  <p className="text-sm font-bold text-slate-900">
-                    {agent.runs}
-                  </p>
-                  <p className="text-xs text-slate-400">Analyses</p>
-                </div>
-                <div className="bg-slate-50 rounded-xl p-2 text-center">
-                  <p className="text-sm font-bold text-slate-900">
-                    {agent.lastRun}
-                  </p>
-                  <p className="text-xs text-slate-400">Dernière exec.</p>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => handleConnect(agent.id)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium bg-[#1B6EF3] text-white hover:bg-[#1549C7] transition-colors"
-                >
-                  {connecting === agent.id ? (
-                    <>
-                      <Clock size={12} className="animate-spin" />
-                      Connexion...
-                    </>
-                  ) : (
-                    <>
-                      <Play size={12} />
-                      Exécuter
-                    </>
-                  )}
-                </button>
-                <button className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
-                  <Settings size={14} />
-                </button>
-              </div>
-
-              {/* Chat */}
-              <AgentChat agent={agent} />
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Add agent CTA */}
-      <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-[#1B6EF3] transition-colors cursor-pointer group">
-        <div className="w-12 h-12 rounded-xl bg-slate-100 group-hover:bg-[#1B6EF3]/10 flex items-center justify-center mx-auto mb-3 transition-colors">
-          <Bot
-            size={20}
-            className="text-slate-400 group-hover:text-[#1B6EF3] transition-colors"
-          />
+              <span className="flex items-center gap-2 text-sm font-bold text-slate-950">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: agent.color }} />
+                {agent.label}
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-slate-500">{agent.description}</span>
+              <span className="mt-2 block font-mono text-xs text-slate-400">{agent.sid}</span>
+            </button>
+          ))}
         </div>
-        <h3 className="font-semibold text-slate-700 text-sm">
-          Ajouter un nouvel agent
-        </h3>
-        <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-          Connectez un agent Dust supplémentaire pour enrichir votre plateforme
-          SEO Intelligence
-        </p>
-        <button className="mt-3 text-xs font-medium text-[#1B6EF3] hover:underline">
-          + Configurer un agent
-        </button>
-      </div>
+      </section>
 
-      {/* ── Outils SEO · Agents Dust ── */}
-      <div>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 rounded-xl bg-[#1B6EF3]/10 flex items-center justify-center">
-            <span className="text-base">✍️</span>
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap gap-2">
+          {promptPresets.map((preset) => (
+            <button
+              key={preset.label}
+              onClick={() => setMessage(preset.prompt)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              {preset.icon}
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        <label className="mt-4 block">
+          <span className="mb-1 block text-xs font-semibold text-slate-600">Message to agent</span>
+          <textarea
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            rows={8}
+            className="w-full resize-none rounded-lg border border-slate-200 p-3 text-sm leading-6 text-slate-900 outline-none transition-colors focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+          />
+        </label>
+
+        <button
+          onClick={sendToDust}
+          disabled={loading}
+          className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          Send to Dust
+        </button>
+      </section>
+
+      {(loading || error || result) && (
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 p-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-950">Agent response</h2>
+              <p className="text-xs text-slate-500">
+                {conversationId ? `Conversation ${conversationId}` : "Waiting for Dust"}
+              </p>
+            </div>
+            {result && <CheckCircle2 size={18} className="text-emerald-500" />}
+          </div>
+          <div className="max-h-[520px] overflow-y-auto p-4">
+            {loading && (
+              <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
+                <Loader2 size={16} className="animate-spin" />
+                Polling Dust every 2 seconds...
+              </div>
+            )}
+            {error && (
+              <div className="flex gap-2 rounded-lg border border-red-100 bg-red-50 p-4 text-sm leading-6 text-red-700">
+                <AlertCircle size={17} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+            {result && (
+              <pre className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-950 p-4 font-mono text-sm leading-6 text-slate-100">
+                {result}
+              </pre>
+            )}
+          </div>
+        </section>
+      )}
+
+      <section className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+        <div className="flex gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+            <Server size={18} />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Outils SEO · Agents Dust</h2>
-            <p className="text-xs text-slate-400">Génération et optimisation de contenu via vos agents Dust configurés</p>
+            <h2 className="text-sm font-bold text-emerald-950">Dust setup guide</h2>
+            <div className="mt-2 grid grid-cols-1 gap-3 text-xs leading-5 text-emerald-800 md:grid-cols-3">
+              <p>
+                <strong>API key:</strong> open Dust, go to developer/API settings, create a key,
+                and paste it here. The key is used only for the browser request.
+              </p>
+              <p>
+                <strong>Workspace ID:</strong> copy it from a Dust URL after <span className="font-mono">/w/</span>.
+                For this workspace, the default is <span className="font-mono">vTiqcjUPSf</span>.
+              </p>
+              <p>
+                <strong>Agent sId:</strong> use the short agent configuration id, for example
+                <span className="font-mono"> W4MzQnXJu3</span>, <span className="font-mono">2HHu8YbPTV</span>,
+                or <span className="font-mono">5A064iifFp</span>.
+              </p>
+            </div>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-          <DustAgentPanel
-            title="Générateur d'article SEO"
-            description="Rédige un article SEO optimisé, en mode guidé ou autonome"
-            icon="🖊️"
-            agentEndpoint="/api/dust-seo-article"
-            modes={{
-              guided: {
-                label: "Mode guidé",
-                fields: [
-                  { name: "keyword",   label: "Mot-clé principal",                                           type: "text"     },
-                  { name: "themes",    label: "Thématiques à couvrir (ex: tarification, SIRH, intégration)", type: "textarea" },
-                  { name: "tone",      label: "Ton (ex: professionnel, décontracté)",                        type: "text"     },
-                  { name: "wordCount", label: "Nombre de mots cible (ex: 1200)",                             type: "text"     },
-                ],
-              },
-              auto: {
-                label: "Mode autonome",
-                fields: [
-                  { name: "topic",     label: "Sujet général (ex: logiciel RH, gestion des paies)", type: "text" },
-                  { name: "tone",      label: "Ton (ex: professionnel, décontracté)",               type: "text" },
-                  { name: "wordCount", label: "Nombre de mots cible (ex: 1200)",                    type: "text" },
-                ],
-              },
-            }}
-          />
-
-          <DustAgentPanel
-            title="Correcteur de contenu SEO"
-            description="Améliore la structure, la densité mots-clés et la lisibilité"
-            icon="🔍"
-            agentEndpoint="/api/dust-seo-analyzer"
-            fields={[
-              { name: "content", label: "Colle ton contenu ici…", type: "textarea" },
-            ]}
-          />
-
-          <DustAgentPanel
-            title="Intégration de backlinks"
-            description="Insère naturellement des liens dans le contenu sur des ancres pertinentes"
-            icon="🔗"
-            agentEndpoint="/api/dust-backlinks"
-            fields={[
-              { name: "content", label: "Contenu à enrichir…",                    type: "textarea" },
-              { name: "links",   label: "URLs à intégrer (séparées par virgules)", type: "text"     },
-            ]}
-          />
-
-          <DustAgentPanel
-            title="Audit SEO"
-            description="Rapport complet : score /100, densité, titres, méta, points d'amélioration"
-            icon="📊"
-            agentEndpoint="/api/dust-seo-audit"
-            fields={[
-              { name: "content", label: "Contenu à auditer…", type: "textarea" },
-            ]}
-          />
-
-        </div>
-      </div>
-
+      </section>
     </div>
   );
 }
