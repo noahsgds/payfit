@@ -98,13 +98,17 @@ async function readDustEvents(response: Response) {
 }
 
 async function dustFetch(path: string, init: RequestInit, apiKey: string) {
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${apiKey}`,
+  };
+
+  if (init.body) {
+    headers["content-type"] = "application/json";
+  }
+
   return fetch(`${DUST_API_BASE}${path}`, {
     ...init,
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-      ...init.headers,
-    },
+    headers,
   });
 }
 
@@ -152,7 +156,6 @@ export async function POST(req: NextRequest) {
             origin: "api",
           },
         },
-        skipToolsValidation: false,
       }),
     },
     apiKey,
@@ -192,7 +195,7 @@ export async function POST(req: NextRequest) {
     const result = await readDustEvents(eventsResponse);
     return NextResponse.json({
       conversationId,
-      result: result || "Aucune réponse reçue depuis Dust.",
+      result: result || "Aucune reponse recue depuis Dust.",
       status: "succeeded",
     });
   } catch (error) {
