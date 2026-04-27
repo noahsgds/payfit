@@ -9,6 +9,7 @@ import SocialListeningPage from "./pages/social-listening/SocialListeningPage";
 import SimulatorStatsPage from "./pages/simulator-stats/SimulatorStatsPage";
 import ClaudeSeoPage from "./pages/claude-seo/ClaudeSeoPage";
 import DustAgentsPage from "./pages/dust-agents/DustAgentsPage";
+import CompetitiveAnalysisPage from "./pages/competitive-analysis/CompetitiveAnalysisPage";
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState<PageId>("dashboard");
@@ -19,6 +20,8 @@ export default function Home() {
         return <DashboardPage onNavigate={setCurrentPage} />;
       case "seo-positioning":
         return <SEOPositioningPage />;
+      case "competitive-analysis":
+        return <CompetitiveAnalysisPage />;
       case "geo-positioning":
         return <GEOPositioningPage />;
       case "social-listening":

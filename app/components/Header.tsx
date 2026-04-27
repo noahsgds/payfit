@@ -8,6 +8,10 @@ const pageTitles: Record<PageId, { title: string; subtitle: string }> = {
     title: "Dashboard",
     subtitle: "Vue d'ensemble de votre performance SEO",
   },
+  "competitive-analysis": {
+    title: "Analyse concurrentielle",
+    subtitle: "Comparaison SEO vs Sage HR, Factorial, Lucca et Silae",
+  },
   "seo-positioning": {
     title: "Positionnement SEO",
     subtitle: "Analyse des positions et mots-clés organiques de PayFit",

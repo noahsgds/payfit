@@ -13,11 +13,13 @@ import {
   HelpCircle,
   BarChart2,
   Bot,
+  Swords,
 } from "lucide-react";
 
 export type PageId =
   | "dashboard"
   | "seo-positioning"
+  | "competitive-analysis"
   | "geo-positioning"
   | "social-listening"
   | "simulator-stats"
@@ -37,6 +39,11 @@ const navItems: NavItem[] = [
     id: "seo-positioning",
     label: "Positionnement SEO",
     icon: <Search size={18} />,
+  },
+  {
+    id: "competitive-analysis",
+    label: "Analyse concurrentielle",
+    icon: <Swords size={18} />,
   },
   {
     id: "geo-positioning",
